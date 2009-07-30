@@ -703,6 +703,7 @@ Select one or more files and press "Delete" key for delete file of list.</proper
                 <property name="column_spacing">5</property>
                 <property name="margin">5</property>
                 <signal name="key_press_event" handler="FileList_key_press_event_cb"/>
+                <signal name="drag_data_received" handler="FileListIcons_drag_data_received_cb"/>
               </widget>
             </child>
           </widget>
