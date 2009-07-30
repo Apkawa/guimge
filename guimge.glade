@@ -36,7 +36,6 @@
     site project http://wiki.github.com/Apkawa/uimge
 </property>
     <property name="authors">Apkawa</property>
-    <property name="logo">/home/apkawa/Code/uimgepy/src/guimge/icons/guimge.png</property>
     <child internal-child="vbox">
       <widget class="GtkVBox" id="dialog-vbox2">
         <property name="visible">True</property>
@@ -61,7 +60,6 @@
     <property name="window_position">center</property>
     <property name="default_width">700</property>
     <property name="default_height">600</property>
-    <property name="icon">/home/apkawa/Code/uimgepy/src/guimge/icons/guimge.ico</property>
     <child>
       <widget class="GtkVBox" id="vbox4">
         <property name="visible">True</property>

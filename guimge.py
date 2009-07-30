@@ -58,7 +58,7 @@ GLADE_FILE = '%sguimge.glade'%DATA_DIR
 ICONS_DIR = '%sicons'%DATA_DIR
 
 UIMGE = Uimge()
-GUIMGE = {'version':'0.1.3-0',}
+GUIMGE = {'version':'0.1.4-1',}
 
 
 
@@ -338,7 +338,7 @@ class gUimge:
 
     def ClearFileList_clicked_cb(self, widget):
         self.store.clear()
-        self._check_filelist_state( noclear=False )
+        self._check_filelist_state( )
 
     def exit_event(self, widget, event):
         print widget
