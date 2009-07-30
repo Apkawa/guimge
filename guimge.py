@@ -76,7 +76,6 @@ class gUimge:
     guimge_icon_png = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.png')
     image_type = ['png','jpeg','jpg','gif','bmp']
 
-
     def __init__(self, filenames=None):
         from ConfigParser import ConfigParser
         self.conf = ConfigParser( )#
@@ -106,9 +105,11 @@ class gUimge:
             'SettingsToggle_toggled_cb': self.SettingsToggle_toggled_cb,
             'SaveSettings_clicked_cb':self.SaveSettings_clicked_cb,
             'About_clicked_cb': self.About_clicked_cb,
-            'FileList_button_press_event_cb':self.FileList_event_cb,
-            'FileList_key_press_event_cb':self.FileList_event_cb,
+#
             'FileListIcons_drag_data_received_cb':self.FileListIcons_drag_data_received_cb,
+            'FileListIcons_drag_motion_cb': self.FileListIcons_drag_motion_cb,
+            'FileListIcons_drag_drop_cb': self.FileListIcons_drag_drop_cb,
+#
             'ClearFileList_clicked_cb':self.ClearFileList_clicked_cb,
             'gtk_main_quit': gtk.main_quit,
             'exit_event': self.exit_event,
@@ -157,10 +158,11 @@ class gUimge:
             icon_list.set_model( self.store)
             icon_list.set_pixbuf_column(1)
             icon_list.set_text_column(2)
-            dnd_list = [ ( 'text/uri-list', 0, 80 ) ]
+            self.dnd_list = [ ( 'text/uri-list', 0, 80 ),
+                    ]
             icon_list.drag_dest_set(
-                    gtk.DEST_DEFAULT_MOTION | gtk.DEST_DEFAULT_HIGHLIGHT | gtk.DEST_DEFAULT_DROP ,
-                    dnd_list,
+                    gtk.DEST_DEFAULT_DROP ,
+                    self.dnd_list,
                     gtk.gdk.ACTION_COPY)
             if filenames:
                 self._add_files(filenames)
@@ -229,13 +231,14 @@ class gUimge:
         self.delim.set_active(0)
 
         self.result_text = self.WidgetsTree.get_widget('ResultText')
+
     def _add_file(self, filename):
             f = unicode(filename,'utf-8')
             filename =  os.path.split(f)[1]
             image_info = gtk.gdk.pixbuf_get_file_info(f)
 
             size = '%.2f Kb'%(os.stat(f).st_size/float(1024))
-            if os.path.splitext(f)[1][1:] in self.image_type and image_info:
+            if os.path.splitext(f)[1][1:] in self.image_type or image_info:
                 image_size = ' %sx%s'%( image_info[1], image_info[2],)
                 image_mime=   ' '.join( image_info [0]['mime_types'])
             else:
@@ -262,6 +265,7 @@ class gUimge:
                         None)
             title = '%s %s %s\n%s'%( image_size, image_mime, size, filename)
             self.store.append([f, pixbuf, title, size])
+
     def _add_files(self, filenames):
 
         for f in filenames:
@@ -313,17 +317,8 @@ class gUimge:
             OUTPRINT.set_rules(usr=widget.get_active_text())
         self.update_result_text()
 
-    # Key event
-    def FileList_event_cb(self,widget, event):
-        #print event.hardware_keycode
-        #print event.keyval
-        if event.keyval == 65535:
-            selection = widget.get_selected_items()
-            #print selection
-            for s in selection:
-                self.store.remove( widget.get_model().get_iter( s[0] ) )
-            self._check_filelist_state()
 
+    #Drag-n-drop
     def FileListIcons_drag_data_received_cb( self, widget, context, x, y, selection, target_type, timestamp):
         if target_type == 80:
             from urllib import unquote
@@ -334,6 +329,11 @@ class gUimge:
                         for f in files]
                     )
             self._check_filelist_state()
+    def FileListIcons_drag_motion_cb(self,widget, context, x, y, time):
+        context.drag_status(gtk.gdk.ACTION_COPY, time)
+        return True
+    def FileListIcons_drag_drop_cb(self,widget, context, x, y, time):
+        context.finish(True, False, time)
 
 
     def ClearFileList_clicked_cb(self, widget):
