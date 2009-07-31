@@ -92,133 +92,47 @@ class gUimge:
         self.default_modeout = self.conf.get( self.conf_default_section, 'modeout')
         #print self.conf.items( self.conf_default_section)
 
-
-        self.WidgetsTree = gtk.glade.XML( GLADE_FILE )
+        self.WidgetsTree = gtk.Builder()
+        self.WidgetsTree.add_from_file( GLADE_FILE )
         conn = {
             'FileOpen_clicked_cb': self.FileOpen_clicked_cb ,
             'UploadButton_clicked_cb': self.UploadButton_clicked_cb,
             'SelectHost_changed_cb': self.SelectHost_changed_cb,
             'SelectModeOutView_changed_cb': self.SelectModeOutView_changed_cb,
-            #'SelectModeOutView_editing_done_cb': self.SelectModeOutView_changed_cb,
             'DelimiterSelect_changed_cb': self.update_result_text,
             'Clipboard_clicked_cb': self.Clipboard_clicked_cb,
             'SettingsToggle_toggled_cb': self.SettingsToggle_toggled_cb,
             'SaveSettings_clicked_cb':self.SaveSettings_clicked_cb,
             'About_clicked_cb': self.About_clicked_cb,
-#
             'FileListIcons_drag_data_received_cb':self.FileListIcons_drag_data_received_cb,
             'FileListIcons_drag_motion_cb': self.FileListIcons_drag_motion_cb,
             'FileListIcons_drag_drop_cb': self.FileListIcons_drag_drop_cb,
-#
+            'FileListIcons_key_press_event_cb': self.FileListIcons_key_press_event_cb,
             'ClearFileList_clicked_cb':self.ClearFileList_clicked_cb,
             'gtk_main_quit': gtk.main_quit,
             'exit_event': self.exit_event,
             }
-        window = self.WidgetsTree.get_widget( 'gUimge_multiple')
-        self.WidgetsTree.signal_autoconnect( conn)
+        self.WidgetsTree.connect_signals( conn)
+
+        window = self.WidgetsTree.get_object( 'gUimge_multiple')
         if (window):
             window.connect("destroy", gtk.main_quit)
         window.set_icon( self.guimge_icon_ico)
         window.show()
 
-        def FileList(filenames):
-            #http://www.pygtk.org/pygtk2tutorial/sec-CellRenderers.html#sec-CellRendererTypes
-            #заполняем список заливок 
-            self.store = gtk.ListStore(str,gtk.gdk.Pixbuf, str, str)
-            #Test
-            #pixbuf = gtk.gdk.pixbuf_new_from_file_at_size( 'c:\\1.jpg', 150, 150)
-            #[ self.store.append(['c:\\1.jpg',pixbuf, "test %i"%i,'%i Kb'%i]) for i in xrange(5)]
-            #
-            tree = self.WidgetsTree.get_widget('FileList')
-            tree.set_model( self.store )
-            tree.set_rubber_banding(True)
-            tree.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
 
-            col = gtk.TreeViewColumn("Name")
-            col.set_expand(True)
-
-            render_pixbuf = gtk.CellRendererPixbuf()
-            col.pack_start(render_pixbuf, expand=False)
-            col.add_attribute(render_pixbuf, 'pixbuf', 1)
-
-            render_text = gtk.CellRendererText()
-            col.pack_start(render_text, expand=False)
-            col.add_attribute(render_text, 'text', 2)
-            tree.append_column(col)
-
-            col = gtk.TreeViewColumn("Size")
-            render_text = gtk.CellRendererText()
-            col.pack_start(render_text, expand=False)
-            col.add_attribute(render_text, 'text', 3)
-            tree.append_column(col)
-
-        def initFileListIcons(filenames):
-            self.store = gtk.ListStore(str,gtk.gdk.Pixbuf, str, str)
-            icon_list = self.WidgetsTree.get_widget('FileListIcons')
-            icon_list.set_model( self.store)
-            icon_list.set_pixbuf_column(1)
-            icon_list.set_text_column(2)
-            self.dnd_list = [ ( 'text/uri-list', 0, 80 ),
-                    ]
-            icon_list.drag_dest_set(
-                    gtk.DEST_DEFAULT_DROP ,
-                    self.dnd_list,
-                    gtk.gdk.ACTION_COPY)
-            if filenames:
-                self._add_files(filenames)
-                self._check_filelist_state()
-
-        def initSelectHost():
-            #Устанавливаем выпадающий список выбора хостингов c иконостасом
-            self.SelectHost = self.WidgetsTree.get_widget("SelectHost")
-            list_store = gtk.ListStore( gtk.gdk.Pixbuf, str)
-            self.SelectHost.set_model( list_store)
-
-            crp = gtk.CellRendererPixbuf()
-            self.SelectHost.pack_start(crp,False,)
-            self.SelectHost.add_attribute(crp, 'pixbuf', 0)
-            crt = gtk.CellRendererText()
-            self.SelectHost.pack_start(crt,False)
-            self.SelectHost.add_attribute(crt, 'text', 1)
-
-            for ls in HOSTS.keys():
-                ico_name = ls+'.ico'
-                ico_dir = ICONS_DIR+os.path.sep+'hosts'
-                ico_path = ico_dir+os.path.sep+ico_name
-                #print ico_path
-                if not os.path.exists(ico_path):
-                    import urllib
-                    u = urllib.urlopen('http://%s/favicon.ico'%ls)
-                    print ico_path
-                    t = open( ico_path, 'w+b')
-                    t.write(u.read())
-                    t.close()
-                else:
-                    pass
-
-                try:
-                    ico = gtk.gdk.pixbuf_new_from_file_at_size( ico_path, 16,16)
-                except:
-                    ico = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
-                self.SelectHost.get_model().append( [ico,ls] )
-            _active = HOSTS.keys().index( self.default_host)
-            #print self.default_host
-            self.SelectHost.set_active( _active  )
-
-        initSelectHost()
-        initFileListIcons( filenames)
-
-
+        self.initSelectHost()
+        self.initFileListIcons( filenames)
 
         #Устанавливаем список outprint'a
-        result_out = self.WidgetsTree.get_widget('SelectModeOutView')
-        result_out.set_model( gtk.ListStore( str, str) )
-        result_out.get_model().append(['Direct url','False'])
+        result_out = self.WidgetsTree.get_object('SelectModeOutView')
+        result_out.set_text_column(0)
+        list_store = result_out.get_model()
+        list_store.append(['Direct url','False'])
         for k in OUTPRINT.outprint_rules.keys():
-            result_out.get_model().append(
+            list_store.append(
                     [OUTPRINT.outprint_rules[k]['desc'].replace('Output in ',''),k ]
                     )
-
         if self.default_modeout == 'False':
             result_out.set_active( 0 )
         else:
@@ -226,45 +140,101 @@ class gUimge:
             result_out.set_active( _active )
 
         #Устанавливаем разделитель.
-        self.delim = self.WidgetsTree.get_widget('DelimiterSelect')
+        self.delim = self.WidgetsTree.get_object('DelimiterSelect')
+        self.delim.set_text_column(0)
         self.delim.append_text('\\n')
         self.delim.set_active(0)
 
-        self.result_text = self.WidgetsTree.get_widget('ResultText')
+        self.result_text = self.WidgetsTree.get_object('ResultText')
+    def initFileListIcons(self, filenames):
+        self.store = gtk.ListStore(str,gtk.gdk.Pixbuf, str, str)
+        icon_list = self.WidgetsTree.get_object('FileListIcons')
+        icon_list.set_model( self.store)
+        icon_list.set_pixbuf_column(1)
+        icon_list.set_text_column(2)
+        self.dnd_list = [ ( 'text/uri-list', 0, 80 ),
+                ]
+        icon_list.drag_dest_set(
+                gtk.DEST_DEFAULT_DROP ,
+                self.dnd_list,
+                gtk.gdk.ACTION_COPY)
+        if filenames:
+            self._add_files(filenames)
+            self._check_filelist_state()
 
-    def _add_file(self, filename):
-            f = unicode(filename,'utf-8')
-            filename =  os.path.split(f)[1]
-            image_info = gtk.gdk.pixbuf_get_file_info(f)
+    def initSelectHost(self):
+        #Устанавливаем выпадающий список выбора хостингов c иконостасом
+        self.SelectHost = self.WidgetsTree.get_object("SelectHost")
+        list_store = gtk.ListStore( gtk.gdk.Pixbuf, str)
+        self.SelectHost.set_model( list_store)
 
-            size = '%.2f Kb'%(os.stat(f).st_size/float(1024))
-            if os.path.splitext(f)[1][1:] in self.image_type or image_info:
-                image_size = ' %sx%s'%( image_info[1], image_info[2],)
-                image_mime=   ' '.join( image_info [0]['mime_types'])
+        crp = gtk.CellRendererPixbuf()
+        self.SelectHost.pack_start(crp,False,)
+        self.SelectHost.add_attribute(crp, 'pixbuf', 0)
+        crt = gtk.CellRendererText()
+        self.SelectHost.pack_start(crt,False)
+        self.SelectHost.add_attribute(crt, 'text', 1)
+
+        for ls in HOSTS.keys():
+            ico_name = ls+'.ico'
+            ico_dir = ICONS_DIR+os.path.sep+'hosts'
+            ico_path = ico_dir+os.path.sep+ico_name
+            if not os.path.exists(ico_path):
+                import urllib
+                u = urllib.urlopen('http://%s/favicon.ico'%ls)
+                print ico_path
+                t = open( ico_path, 'w+b')
+                t.write(u.read())
+                t.close()
             else:
-                print filename
-                return False
-
-            if len(filename) > 31:
-                filename = '%s...%s'%(
-                        filename[0:15],filename[-15:],
-                        )
-            else:
-                filename = '%s'%(
-                        filename,
-                        )
+                pass
 
             try:
-                pixbuf = gtk.gdk.pixbuf_new_from_file_at_size( f, 150, 150)
+                ico = gtk.gdk.pixbuf_new_from_file_at_size( ico_path, 16,16)
             except:
-                'Stock pixbuf'
-                _t = gtk.TreeView()
-                pixbuf = _t.render_icon(
-                        gtk.STOCK_MISSING_IMAGE,
-                        gtk.ICON_SIZE_DIALOG,
-                        None)
-            title = '%s %s %s\n%s'%( image_size, image_mime, size, filename)
-            self.store.append([f, pixbuf, title, size])
+                ico = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
+            self.SelectHost.get_model().append( [ico,ls] )
+        _active = HOSTS.keys().index( self.default_host)
+        #print self.default_host
+        self.SelectHost.set_active( _active  )
+
+    def _add_file(self, filename):
+        thumb_size=100
+        f = unicode(filename,'utf-8')
+        filename =  os.path.split(f)[1]
+        image_info = gtk.gdk.pixbuf_get_file_info(f)
+
+        size = '%.2f Kb'%(os.stat(f).st_size/float(1024))
+        if os.path.splitext(f)[1][1:] in self.image_type or image_info:
+            image_size = ' %sx%s'%( image_info[1], image_info[2],)
+            image_mime=   ' '.join( image_info [0]['mime_types'])
+        else:
+            print filename
+            return False
+
+        if len(filename) > 31:
+            filename = '%s...%s'%(
+                    filename[0:15],filename[-15:],
+                    )
+        else:
+            filename = '%s'%(
+                    filename,
+                    )
+
+        try:
+            if image_info[1] >= thumb_size or image_info[1] >= thumb_size:
+                pixbuf = gtk.gdk.pixbuf_new_from_file_at_size( f, thumb_size, thumb_size)
+            else:
+                pixbuf = gtk.gdk.pixbuf_new_from_file( f)
+        except:
+            'Stock pixbuf'
+            _t = gtk.TreeView()
+            pixbuf = _t.render_icon(
+                    gtk.STOCK_MISSING_IMAGE,
+                    gtk.ICON_SIZE_DIALOG,
+                    None)
+        title = '%s %s %s\n%s'%( image_size, image_mime, size, filename)
+        self.store.append([f, pixbuf, title, size])
 
     def _add_files(self, filenames):
 
@@ -276,9 +246,8 @@ class gUimge:
             noclear=False
         else:
             noclear=True
-        self.WidgetsTree.get_widget('UploadButton').set_sensitive(noclear)
-        self.WidgetsTree.get_widget('ClearFileList').set_sensitive(noclear)
-
+        self.WidgetsTree.get_object('UploadButton').set_sensitive(noclear)
+        self.WidgetsTree.get_object('ClearFileList').set_sensitive(noclear)
 
     def FileOpen_clicked_cb(self, widget):
         print self.lastdir
@@ -298,11 +267,11 @@ class gUimge:
         chooser.destroy()
 
     def SelectHost_changed_cb(self, widget):
-        #print "sel host"
-        print widget.get_active(),widget.get_model()[widget.get_active()][1], widget.name
         self.current_host = widget.get_model()[widget.get_active()][1]
-        print self.current_host
         UIMGE.set_host( HOSTS.get( self.current_host ))
+        #print "sel host"
+        #print widget.get_active(),widget.get_model()[widget.get_active()][1], widget.name
+        #print self.current_host
 
     def SelectModeOutView_changed_cb( self, widget):
         #print widget.get_active(),widget.get_active_text(), widget.name
@@ -316,7 +285,6 @@ class gUimge:
             self.current_modeout = ''
             OUTPRINT.set_rules(usr=widget.get_active_text())
         self.update_result_text()
-
 
     #Drag-n-drop
     def FileListIcons_drag_data_received_cb( self, widget, context, x, y, selection, target_type, timestamp):
@@ -334,6 +302,15 @@ class gUimge:
         return True
     def FileListIcons_drag_drop_cb(self,widget, context, x, y, time):
         context.finish(True, False, time)
+    def FileListIcons_key_press_event_cb(self,widget, event):
+        #print event.hardware_keycode
+        #print event.keyval
+        if event.keyval == 65535:
+            selection = widget.get_selected_items()
+            #print selection
+            for s in selection:
+                self.store.remove( widget.get_model().get_iter( s[0] ) )
+            self._check_filelist_state()
 
 
     def ClearFileList_clicked_cb(self, widget):
@@ -351,7 +328,7 @@ class gUimge:
             progress.set_text(text)
             progress.set_fraction( fraction)
 
-        progress = self.WidgetsTree.get_widget('progressbar1')
+        progress = self.WidgetsTree.get_object('progressbar1')
         objects = [ s[0] for s in self.store]
         self.result = []
         if objects:
@@ -378,8 +355,8 @@ class gUimge:
                         ) )
                     print self.result
                     self.update_result_text()
-                    self.WidgetsTree.get_widget('ResultExpander').set_sensitive(True)
-                    self.WidgetsTree.get_widget('Clipboard').set_sensitive(True)
+                    self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
+                    self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
             progress.hide()
 
     def update_result_text(self, widget=None):
@@ -404,7 +381,7 @@ class gUimge:
         _clip.set_text( result )
 
     def SettingsToggle_toggled_cb(self, widget):
-        settings_vbox = self.WidgetsTree.get_widget('SettingVBox')
+        settings_vbox = self.WidgetsTree.get_object('SettingVBox')
         if widget.get_active():
             settings_vbox.show()
         else:
@@ -420,7 +397,7 @@ class gUimge:
         pass
 
     def About_clicked_cb(self, widget):
-        about = self.WidgetsTree.get_widget('About')
+        about = self.WidgetsTree.get_object('About')
         about.set_logo( self.guimge_icon_png)
         about.set_icon( self.guimge_icon_ico )
         about.set_version( GUIMGE['version'])
