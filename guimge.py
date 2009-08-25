@@ -34,7 +34,7 @@ import gobject
 #TODO: Сделать относительные пути импорта
 
 sys.path.insert(0, os.path.abspath('..'+os.path.sep+'uimgepy') )
-from uimge import Uimge, Outprint
+from uimge import Uimge, Outprint, Hosts
 
 
 if not sys.platform == 'win32':
@@ -58,14 +58,14 @@ GLADE_FILE = '%sguimge.glade'%DATA_DIR
 ICONS_DIR = '%sicons'%DATA_DIR
 
 UIMGE = Uimge()
-GUIMGE = {'version':'0.1.4-1',}
 
 
 
+GUIMGE = {'version':'0.1.4.2-1',}
 
 
-__hosts = UIMGE.hosts()
-HOSTS =dict( [(host.host,key) for key, host in __hosts.items()] )
+#__hosts = UIMGE.hosts()
+HOSTS =dict( [(host.host, host ) for host in Hosts.hosts_dict.values()] )
 
 OUTPRINT = Outprint()
 
@@ -175,10 +175,12 @@ class gUimge:
         self.SelectHost.pack_start(crt,False)
         self.SelectHost.add_attribute(crt, 'text', 1)
 
-        for ls in HOSTS.keys():
-            ico_name = ls+'.ico'
+        for host in HOSTS.keys():
+            ico_name = host+'.ico'
+#TODO: os.path.join
             ico_dir = ICONS_DIR+os.path.sep+'hosts'
             ico_path = ico_dir+os.path.sep+ico_name
+
             if not os.path.exists(ico_path):
                 import urllib
                 u = urllib.urlopen('http://%s/favicon.ico'%ls)
@@ -186,14 +188,12 @@ class gUimge:
                 t = open( ico_path, 'w+b')
                 t.write(u.read())
                 t.close()
-            else:
-                pass
 
             try:
                 ico = gtk.gdk.pixbuf_new_from_file_at_size( ico_path, 16,16)
             except:
                 ico = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
-            self.SelectHost.get_model().append( [ico,ls] )
+            self.SelectHost.get_model().append( [ico, host] )
         _active = HOSTS.keys().index( self.default_host)
         #print self.default_host
         self.SelectHost.set_active( _active  )
