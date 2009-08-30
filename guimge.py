@@ -61,7 +61,7 @@ UIMGE = Uimge()
 
 
 
-GUIMGE = {'version':'0.1.4.2-1',}
+GUIMGE = {'version':'0.1.4.3-1',}
 
 
 #__hosts = UIMGE.hosts()
@@ -146,6 +146,7 @@ class gUimge:
         self.delim.set_active(0)
 
         self.result_text = self.WidgetsTree.get_object('ResultText')
+
     def initFileListIcons(self, filenames):
         self.store = gtk.ListStore(str,gtk.gdk.Pixbuf, str, str)
         icon_list = self.WidgetsTree.get_object('FileListIcons')
@@ -177,18 +178,16 @@ class gUimge:
 
         for host in HOSTS.keys():
             ico_name = host+'.ico'
-#TODO: os.path.join
-            ico_dir = ICONS_DIR+os.path.sep+'hosts'
-            ico_path = ico_dir+os.path.sep+ico_name
+            ico_dir = os.path.join ( ICONS_DIR, 'hosts')
+            ico_path = os.path.join( ico_dir,ico_name)
 
             if not os.path.exists(ico_path):
                 import urllib
-                u = urllib.urlopen('http://%s/favicon.ico'%ls)
+                u = urllib.urlopen('http://%s/favicon.ico'%host)
                 print ico_path
                 t = open( ico_path, 'w+b')
                 t.write(u.read())
                 t.close()
-
             try:
                 ico = gtk.gdk.pixbuf_new_from_file_at_size( ico_path, 16,16)
             except:
@@ -286,8 +285,8 @@ class gUimge:
             OUTPRINT.set_rules(usr=widget.get_active_text())
         self.update_result_text()
 
-    #Drag-n-drop
     def FileListIcons_drag_data_received_cb( self, widget, context, x, y, selection, target_type, timestamp):
+        "Drag-n-drop"
         if target_type == 80:
             from urllib import unquote
             uri = selection.data.strip()
@@ -297,11 +296,14 @@ class gUimge:
                         for f in files]
                     )
             self._check_filelist_state()
+
     def FileListIcons_drag_motion_cb(self,widget, context, x, y, time):
         context.drag_status(gtk.gdk.ACTION_COPY, time)
         return True
+
     def FileListIcons_drag_drop_cb(self,widget, context, x, y, time):
         context.finish(True, False, time)
+
     def FileListIcons_key_press_event_cb(self,widget, event):
         #print event.hardware_keycode
         #print event.keyval
@@ -311,7 +313,6 @@ class gUimge:
             for s in selection:
                 self.store.remove( widget.get_model().get_iter( s[0] ) )
             self._check_filelist_state()
-
 
     def ClearFileList_clicked_cb(self, widget):
         self.store.clear()
@@ -336,7 +337,6 @@ class gUimge:
             __current_n_obj = 1
             __all_n_obj = len(objects)
             for obj in objects:
-
                 progress.show()
                 progress_set(
                         'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj),
@@ -353,7 +353,7 @@ class gUimge:
                         UIMGE.img_thumb_url,
                         UIMGE.filename
                         ) )
-                    print self.result
+                    #print self.result
                     self.update_result_text()
                     self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
                     self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
@@ -459,16 +459,14 @@ def FileChooser(lastdir=False):
     return chooser
 
 
-if __name__ == "__main__":
-    #gobject.threads_init()
+def main():
     from optparse import OptionParser
     parser= OptionParser()
     (options, args) = parser.parse_args()
     app = gUimge( filenames=args)
 
-    #app = guimge_multiple()
-    #gtk.gdk.threads_enter()
     gtk.main()
 
-    #gtk.gdk.threads_leave()
+if __name__ == "__main__":
+    main()
 

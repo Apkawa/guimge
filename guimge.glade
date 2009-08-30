@@ -54,29 +54,6 @@
       </object>
     </child>
   </object>
-  <object class="GtkListStore" id="liststore1">
-    <columns>
-      <!-- column-name item -->
-      <column type="gchararray"/>
-    </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">100</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">150</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">200</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">250</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">300</col>
-      </row>
-    </data>
-  </object>
   <object class="GtkListStore" id="DelimiterSelectListStore">
     <columns>
       <!-- column-name item -->
@@ -104,7 +81,6 @@
         <child>
           <object class="GtkToolbar" id="toolbar1">
             <property name="visible">True</property>
-            <property name="icon_size">0</property>
             <child>
               <object class="GtkToolButton" id="FileOpen">
                 <property name="visible">True</property>
@@ -507,7 +483,6 @@ Custom view help:
                               <object class="GtkComboBoxEntry" id="comboboxentry1">
                                 <property name="width_request">100</property>
                                 <property name="visible">True</property>
-                                <property name="model">liststore1</property>
                                 <child>
                                   <object class="GtkCellRendererText" id="cellrenderertext1"/>
                                   <attributes>
@@ -692,32 +667,6 @@ Custom view help:
           </packing>
         </child>
         <child>
-          <object class="GtkScrolledWindow" id="scrolledwindow1">
-            <property name="can_focus">True</property>
-            <property name="border_width">5</property>
-            <property name="hscrollbar_policy">never</property>
-            <property name="vscrollbar_policy">automatic</property>
-            <property name="shadow_type">in</property>
-            <child>
-              <object class="GtkTreeView" id="FileList">
-                <property name="visible">True</property>
-                <property name="tooltip_text" translatable="yes">Files for uploading.
-Select one or some files and press "Delete" key for delete file of list.
-</property>
-                <property name="headers_visible">False</property>
-                <property name="rules_hint">True</property>
-                <property name="enable_search">False</property>
-                <property name="hover_expand">True</property>
-                <property name="enable_grid_lines">horizontal</property>
-                <signal name="key_press_event" handler="FileList_key_press_event_cb" after="yes"/>
-              </object>
-            </child>
-          </object>
-          <packing>
-            <property name="position">4</property>
-          </packing>
-        </child>
-        <child>
           <object class="GtkScrolledWindow" id="scrolledwindow3">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
@@ -744,7 +693,7 @@ Select one or more files and press "Delete" key for delete file of list.</proper
             </child>
           </object>
           <packing>
-            <property name="position">5</property>
+            <property name="position">4</property>
           </packing>
         </child>
       </object>
