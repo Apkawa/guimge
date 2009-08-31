@@ -32,6 +32,8 @@ import gobject
 #gtk.gdk.threads_init()
 
 #TODO: Сделать относительные пути импорта
+#TODO: Добавить скриншотинг, в качестве опциональной зависимости.
+#TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
 sys.path.insert(0, os.path.abspath('..'+os.path.sep+'uimgepy') )
 from uimge import Uimge, Outprint, Hosts
