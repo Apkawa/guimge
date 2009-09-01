@@ -35,7 +35,7 @@ import gobject
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
 #TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
-sys.path.insert(0, os.path.abspath('..'+os.path.sep+'uimgepy') )
+sys.path.insert(0, os.path.abspath("..") )
 from uimge import Uimge, Outprint, Hosts
 
 
@@ -357,7 +357,7 @@ class gUimge:
                         ) )
                     #print self.result
                     self.update_result_text()
-                    self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
+                    #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
                     self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
             progress.hide()
 
