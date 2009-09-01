@@ -63,7 +63,7 @@ UIMGE = Uimge()
 
 
 
-GUIMGE = {'version':'0.1.4.3-1',}
+GUIMGE = {'version':'0.1.4.4-1',}
 
 
 #__hosts = UIMGE.hosts()
@@ -267,6 +267,24 @@ class gUimge:
         self._check_filelist_state()
         chooser.destroy()
 
+    def FolderOpen_clicked_cb(self, widget):
+        print self.lastdir
+        chooser = FileChooser(self.lastdir, folder_chooser=True)
+        chooser.set_select_multiple(True)
+        resp = chooser.run()
+        print resp
+        if resp == gtk.RESPONSE_OK:
+            __files =  chooser.get_filenames()
+
+            self.lastdir = chooser.get_current_folder_uri()
+            print __files
+            self._add_files(filenames=__files)
+        elif resp == gtk.RESPONSE_CANCEL:
+            print 'Closed, no files selected'
+
+        self._check_filelist_state()
+        chooser.destroy()
+
     def SelectHost_changed_cb(self, widget):
         self.current_host = widget.get_model()[widget.get_active()][1]
         UIMGE.set_host( HOSTS.get( self.current_host ))
@@ -407,10 +425,10 @@ class gUimge:
         about.hide()
 
 
-def FileChooser(lastdir=False):
+def FileChooser(lastdir=False, folder_chooser=False):
     chooser = gtk.FileChooserDialog(
             title="Select image",
-            action=gtk.FILE_CHOOSER_ACTION_OPEN,
+            action=gtk.FILE_CHOOSER_ACTION_OPEN if not folder_chooser else gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
             buttons=(
                 gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
                 gtk.STOCK_OPEN,gtk.RESPONSE_OK),
