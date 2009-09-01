@@ -29,6 +29,7 @@ import os
 import gtk
 import gtk.glade
 import gobject
+
 #gtk.gdk.threads_init()
 
 #TODO: Сделать относительные пути импорта
@@ -76,7 +77,8 @@ class gUimge:
     result = []
     guimge_icon_ico = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.ico')
     guimge_icon_png = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.png')
-    image_type = ['png','jpeg','jpg','gif','bmp']
+    image_mime = ("image/png", "image/jpeg", "image/gif", "image/bmp")
+    image_type = ('.png', '.jpe', '.jpg', '.jpeg', '.gif', '.bmp')
 
     def __init__(self, filenames=None):
         from ConfigParser import ConfigParser
@@ -98,6 +100,7 @@ class gUimge:
         self.WidgetsTree.add_from_file( GLADE_FILE )
         conn = {
             'FileOpen_clicked_cb': self.FileOpen_clicked_cb ,
+            'AddFromFolder_activate_cb': self.FolderOpen_clicked_cb,
             'UploadButton_clicked_cb': self.UploadButton_clicked_cb,
             'SelectHost_changed_cb': self.SelectHost_changed_cb,
             'SelectModeOutView_changed_cb': self.SelectModeOutView_changed_cb,
@@ -110,6 +113,7 @@ class gUimge:
             'FileListIcons_drag_motion_cb': self.FileListIcons_drag_motion_cb,
             'FileListIcons_drag_drop_cb': self.FileListIcons_drag_drop_cb,
             'FileListIcons_key_press_event_cb': self.FileListIcons_key_press_event_cb,
+            "DeleteSelectedItems_clicked_cb": self.DeleteSelectedItemsFileList,
             'ClearFileList_clicked_cb':self.ClearFileList_clicked_cb,
             'gtk_main_quit': gtk.main_quit,
             'exit_event': self.exit_event,
@@ -149,8 +153,17 @@ class gUimge:
 
         self.result_text = self.WidgetsTree.get_object('ResultText')
 
+        #Виджеты
+        self.filelistprogress = self.WidgetsTree.get_object('progressbar1')
+
+        self._check_filelist_state()
+
     def initFileListIcons(self, filenames):
-        self.store = gtk.ListStore(str,gtk.gdk.Pixbuf, str, str)
+        self.store = gtk.ListStore( str, # path
+                                    gtk.gdk.Pixbuf, #thumb
+                                    str, # title
+                                    long, # size
+                                    )
         icon_list = self.WidgetsTree.get_object('FileListIcons')
         icon_list.set_model( self.store)
         icon_list.set_pixbuf_column(1)
@@ -166,7 +179,7 @@ class gUimge:
             self._check_filelist_state()
 
     def initSelectHost(self):
-        #Устанавливаем выпадающий список выбора хостингов c иконостасом
+        "Устанавливаем выпадающий список выбора хостингов c иконостасом"
         self.SelectHost = self.WidgetsTree.get_object("SelectHost")
         list_store = gtk.ListStore( gtk.gdk.Pixbuf, str)
         self.SelectHost.set_model( list_store)
@@ -200,12 +213,14 @@ class gUimge:
         self.SelectHost.set_active( _active  )
 
     def _add_file(self, filename):
+        "Фукнция добавления файла в iconview"
         thumb_size=100
         f = unicode(filename,'utf-8')
         filename =  os.path.split(f)[1]
         image_info = gtk.gdk.pixbuf_get_file_info(f)
 
-        size = '%.2f Kb'%(os.stat(f).st_size/float(1024))
+        size = os.stat(f).st_size
+        size_str = human( size )
         if os.path.splitext(f)[1][1:] in self.image_type or image_info:
             image_size = ' %sx%s'%( image_info[1], image_info[2],)
             image_mime=   ' '.join( image_info [0]['mime_types'])
@@ -234,56 +249,73 @@ class gUimge:
                     gtk.STOCK_MISSING_IMAGE,
                     gtk.ICON_SIZE_DIALOG,
                     None)
-        title = '%s %s %s\n%s'%( image_size, image_mime, size, filename)
+        title = '%s %s %s\n%s'%( image_size, image_mime, size_str, filename)
         self.store.append([f, pixbuf, title, size])
 
     def _add_files(self, filenames):
 
+        self.filelistprogress.show()
+        file_list = []
         for f in filenames:
+            if not os.path.isdir(f):
+                file_list.append(f)
+            else:
+                for filename in os.listdir( f ):
+                    path = os.path.join( f, filename)
+                    if os.path.isfile( path ):
+                        file_list.append( path )
+        all_files_count = len( file_list )
+        current_file_count = 0
+        for f in file_list:
+            self.filelistprogress.set_text(
+                   'Added %i file of %i files'%( current_file_count, all_files_count)
+                   )
+            self.filelistprogress.set_fraction( float( current_file_count )/ all_files_count )
+
+            while gtk.events_pending():
+                gtk.main_iteration()
+
             self._add_file(f)
+            current_file_count += 1
+        self.filelistprogress.hide()
 
     def _check_filelist_state(self):
-        if not [s for s in self.store]:
+        _store =  [ s[3] for s in self.store]
+        if not _store:
             noclear=False
         else:
+            count = len( _store )
+            sum_size =  human( sum( _store ) )
+            count_label = self.WidgetsTree.get_object( "count_files" )
+            sum_size_label    = self.WidgetsTree.get_object( "sum_size" )
+            count_label.set_label( str(count))
+            sum_size_label.set_label( sum_size )
             noclear=True
+
         self.WidgetsTree.get_object('UploadButton').set_sensitive(noclear)
         self.WidgetsTree.get_object('ClearFileList').set_sensitive(noclear)
+        self.WidgetsTree.get_object('DeleteSelectedItems').set_sensitive(noclear)
 
-    def FileOpen_clicked_cb(self, widget):
+    def FileOpen_clicked_cb(self, widget, folder=False):
         print self.lastdir
-        chooser = FileChooser(self.lastdir)
+        chooser = FileChooser(self.lastdir, folder_chooser = folder)
         chooser.set_select_multiple(True)
         resp = chooser.run()
         print resp
         if resp == gtk.RESPONSE_OK:
             __files =  chooser.get_filenames()
             self.lastdir = chooser.get_current_folder_uri()
-            print __files
+            chooser.destroy()
+            #print __files
             self._add_files(filenames=__files)
+            self._check_filelist_state()
         elif resp == gtk.RESPONSE_CANCEL:
+            chooser.destroy()
             print 'Closed, no files selected'
 
-        self._check_filelist_state()
-        chooser.destroy()
 
     def FolderOpen_clicked_cb(self, widget):
-        print self.lastdir
-        chooser = FileChooser(self.lastdir, folder_chooser=True)
-        chooser.set_select_multiple(True)
-        resp = chooser.run()
-        print resp
-        if resp == gtk.RESPONSE_OK:
-            __files =  chooser.get_filenames()
-
-            self.lastdir = chooser.get_current_folder_uri()
-            print __files
-            self._add_files(filenames=__files)
-        elif resp == gtk.RESPONSE_CANCEL:
-            print 'Closed, no files selected'
-
-        self._check_filelist_state()
-        chooser.destroy()
+        self.FileOpen_clicked_cb( widget, folder=True)
 
     def SelectHost_changed_cb(self, widget):
         self.current_host = widget.get_model()[widget.get_active()][1]
@@ -324,15 +356,20 @@ class gUimge:
     def FileListIcons_drag_drop_cb(self,widget, context, x, y, time):
         context.finish(True, False, time)
 
-    def FileListIcons_key_press_event_cb(self,widget, event):
+    def FileListIcons_key_press_event_cb(self,widget, event=None):
         #print event.hardware_keycode
         #print event.keyval
         if event.keyval == 65535:
-            selection = widget.get_selected_items()
-            #print selection
-            for s in selection:
-                self.store.remove( widget.get_model().get_iter( s[0] ) )
-            self._check_filelist_state()
+            self.DeleteSelectedItemsFileList()
+
+    def DeleteSelectedItemsFileList( self, widget=None):
+        _widget = self.WidgetsTree.get_object("FileListIcons")
+        selection = _widget.get_selected_items()
+        #print selection
+        for s in selection:
+            self.store.remove( _widget.get_model().get_iter( s[0] ) )
+        self._check_filelist_state()
+
 
     def ClearFileList_clicked_cb(self, widget):
         self.store.clear()
@@ -345,11 +382,6 @@ class gUimge:
             gtk.main_quit()
 
     def UploadButton_clicked_cb(self, widget):
-        def progress_set(text, fraction):
-            progress.set_text(text)
-            progress.set_fraction( fraction)
-
-        progress = self.WidgetsTree.get_object('progressbar1')
         objects = [ s[0] for s in self.store]
         self.result = []
         if objects:
@@ -357,10 +389,11 @@ class gUimge:
             __current_n_obj = 1
             __all_n_obj = len(objects)
             for obj in objects:
-                progress.show()
-                progress_set(
-                        'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj),
-                        float(__current_n_obj)/__all_n_obj)
+                self.filelistprogress.show()
+                self.filelistprogress.set_text(
+                       'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj)
+                       )
+                self.filelistprogress.set_fraction( float(__current_n_obj)/__all_n_obj )
                 __current_n_obj +=1
 
                 while gtk.events_pending():
@@ -377,7 +410,7 @@ class gUimge:
                     self.update_result_text()
                     #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
                     self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
-            progress.hide()
+            self.filelistprogress.hide()
 
     def update_result_text(self, widget=None):
         _result = self.make_result()
@@ -438,7 +471,7 @@ def FileChooser(lastdir=False, folder_chooser=False):
     #Set filters
     list_filters = (
             ("Images",(
-                ("image/png","image/jpeg", "image/gif"),
+                ("image/png","image/jpeg", "image/gif","image/bmp"),
                 ("*.png","*.jpg","*.jpeg","*.gif","*.tif","*.tiff","*.bmp") ) ),
             ("PNG",(
                 ("image/png",),
@@ -449,6 +482,9 @@ def FileChooser(lastdir=False, folder_chooser=False):
             ("GIF",(
                 ("image/gif",),
                 ("*.gif",) ) ),
+            ("BMP",(
+                ("image/bmp",),
+                ("*.bmp",) ) ),
             )
 
     for f_name, filtr in list_filters:
@@ -477,6 +513,14 @@ def FileChooser(lastdir=False, folder_chooser=False):
     chooser.set_preview_widget( preview )
     chooser.connect("update-preview", update_preview ,preview )
     return chooser
+
+
+def human(num, prefix=" ", suffix='b'):
+    num=float(num)
+    for x in ['','K','M','G','T']:
+        if num<1024:
+            return "%3.1f%s%s%s" % (num, prefix, x,  suffix)
+        num /=1024
 
 
 def main():
