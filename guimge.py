@@ -30,6 +30,8 @@ import gtk
 import gtk.glade
 import gobject
 
+import threading
+
 #gtk.gdk.threads_init()
 
 #TODO: Сделать относительные пути импорта
@@ -64,7 +66,7 @@ UIMGE = Uimge()
 
 
 
-GUIMGE = {'version':'0.1.4.4-1',}
+GUIMGE = {'version':'0.1.4.5-1',}
 
 
 #__hosts = UIMGE.hosts()
@@ -88,7 +90,7 @@ class gUimge:
             self.conf.read( CONF_FILE)
         else:
             print 'Not found config'
-            _defaults={'host':'radikal.ru', 'modeout': 'False'}
+            _defaults={'host':'radikal.ru', 'modeout': 'False',"proxy":""}
             self.conf.add_section( self.conf_default_section )
             for key, val in _defaults.items():
                 self.conf.set( self.conf_default_section, key, val)
@@ -99,22 +101,27 @@ class gUimge:
         self.WidgetsTree = gtk.Builder()
         self.WidgetsTree.add_from_file( GLADE_FILE )
         conn = {
-            'FileOpen_clicked_cb': self.FileOpen_clicked_cb ,
-            'AddFromFolder_activate_cb': self.FolderOpen_clicked_cb,
-            'UploadButton_clicked_cb': self.UploadButton_clicked_cb,
-            'SelectHost_changed_cb': self.SelectHost_changed_cb,
-            'SelectModeOutView_changed_cb': self.SelectModeOutView_changed_cb,
-            'DelimiterSelect_changed_cb': self.update_result_text,
-            'Clipboard_clicked_cb': self.Clipboard_clicked_cb,
-            'SettingsToggle_toggled_cb': self.SettingsToggle_toggled_cb,
-            'SaveSettings_clicked_cb':self.SaveSettings_clicked_cb,
-            'About_clicked_cb': self.About_clicked_cb,
-            'FileListIcons_drag_data_received_cb':self.FileListIcons_drag_data_received_cb,
-            'FileListIcons_drag_motion_cb': self.FileListIcons_drag_motion_cb,
-            'FileListIcons_drag_drop_cb': self.FileListIcons_drag_drop_cb,
-            'FileListIcons_key_press_event_cb': self.FileListIcons_key_press_event_cb,
-            "DeleteSelectedItems_clicked_cb": self.DeleteSelectedItemsFileList,
-            'ClearFileList_clicked_cb':self.ClearFileList_clicked_cb,
+            # Toolbar 
+            'on_FileOpen_clicked': self.on_FileOpen_clicked,
+            'on_AddFromFolder_activate': self.on_FolderOpen_clicked,
+            'on_UploadButton_clicked': self.on_UploadButton_clicked,
+            'on_Clipboard_clicked': self.on_Clipboard_clicked,
+            'on_About_clicked': self.on_About_clicked,
+            # 'on_SettingsToggle_toggled': self.on_SettingsToggle_toggled,
+            # FileListPage
+            'on_SelectHost_changed': self.on_SelectHost_changed,
+            'on_FileListIcons_drag_data_received':self.on_FileListIcons_drag_data_received,
+            'on_FileListIcons_drag_motion': self.on_FileListIcons_drag_motion,
+            'on_FileListIcons_drag_drop': self.on_FileListIcons_drag_drop,
+            'on_FileListIcons_key_press_event': self.on_FileListIcons_key_press_event,
+            "on_DeleteSelectedItems_clicked": self.DeleteSelectedItemsFileList,
+            'on_ClearFileList_clicked':self.on_ClearFileList_clicked,
+            # Result Page
+            'on_SelectModeOutView_changed': self.on_SelectModeOutView_changed,
+            'on_DelimiterSelect_changed': self.update_result_text,
+            # Settings Page
+            'on_SaveSettings_clicked':self.on_SaveSettings_clicked,
+            # Other
             'gtk_main_quit': gtk.main_quit,
             'exit_event': self.exit_event,
             }
@@ -155,6 +162,7 @@ class gUimge:
 
         #Виджеты
         self.filelistprogress = self.WidgetsTree.get_object('progressbar1')
+        self.statusbar = self.WidgetsTree.get_object( "statusbar1" )
 
         self._check_filelist_state()
 
@@ -266,16 +274,18 @@ class gUimge:
                         file_list.append( path )
         all_files_count = len( file_list )
         current_file_count = 0
+
         for f in file_list:
+            # gtk.gdk.threads_enter()
             self.filelistprogress.set_text(
                    'Added %i file of %i files'%( current_file_count, all_files_count)
                    )
             self.filelistprogress.set_fraction( float( current_file_count )/ all_files_count )
-
             while gtk.events_pending():
                 gtk.main_iteration()
 
             self._add_file(f)
+            # gtk.gdk.threads_leave()
             current_file_count += 1
         self.filelistprogress.hide()
 
@@ -286,17 +296,22 @@ class gUimge:
         else:
             count = len( _store )
             sum_size =  human( sum( _store ) )
-            count_label = self.WidgetsTree.get_object( "count_files" )
-            sum_size_label    = self.WidgetsTree.get_object( "sum_size" )
-            count_label.set_label( str(count))
-            sum_size_label.set_label( sum_size )
+            # count_label = self.WidgetsTree.get_object( "count_files" )
+            # sum_size_label    = self.WidgetsTree.get_object( "sum_size" )
+            # count_label.set_label( str(count))
+            # sum_size_label.set_label( sum_size )
+            state_str = "%i images (%s)"%( count, sum_size)
+            _id = self.statusbar.get_context_id("FileListState")
+            self.statusbar.push( _id , state_str )
             noclear=True
 
         self.WidgetsTree.get_object('UploadButton').set_sensitive(noclear)
         self.WidgetsTree.get_object('ClearFileList').set_sensitive(noclear)
         self.WidgetsTree.get_object('DeleteSelectedItems').set_sensitive(noclear)
 
-    def FileOpen_clicked_cb(self, widget, folder=False):
+    #Events
+    #Toolbar
+    def on_FileOpen_clicked(self, widget, folder=False):
         print self.lastdir
         chooser = FileChooser(self.lastdir, folder_chooser = folder)
         chooser.set_select_multiple(True)
@@ -313,75 +328,7 @@ class gUimge:
             chooser.destroy()
             print 'Closed, no files selected'
 
-
-    def FolderOpen_clicked_cb(self, widget):
-        self.FileOpen_clicked_cb( widget, folder=True)
-
-    def SelectHost_changed_cb(self, widget):
-        self.current_host = widget.get_model()[widget.get_active()][1]
-        UIMGE.set_host( HOSTS.get( self.current_host ))
-        #print "sel host"
-        #print widget.get_active(),widget.get_model()[widget.get_active()][1], widget.name
-        #print self.current_host
-
-    def SelectModeOutView_changed_cb( self, widget):
-        #print widget.get_active(),widget.get_active_text(), widget.name
-        if widget.get_active() != -1:
-            key_out = widget.get_model()[widget.get_active()][1]
-            #print key_out
-            self.current_modeout = key_out
-            OUTPRINT.set_rules(key_out)
-        else:
-            #print widget.get_active_text()
-            self.current_modeout = ''
-            OUTPRINT.set_rules(usr=widget.get_active_text())
-        self.update_result_text()
-
-    def FileListIcons_drag_data_received_cb( self, widget, context, x, y, selection, target_type, timestamp):
-        "Drag-n-drop"
-        if target_type == 80:
-            from urllib import unquote
-            uri = selection.data.strip()
-            files= uri.split()
-            self._add_files(
-                    [unquote(os.path.normpath(f).replace('file:',''))
-                        for f in files]
-                    )
-            self._check_filelist_state()
-
-    def FileListIcons_drag_motion_cb(self,widget, context, x, y, time):
-        context.drag_status(gtk.gdk.ACTION_COPY, time)
-        return True
-
-    def FileListIcons_drag_drop_cb(self,widget, context, x, y, time):
-        context.finish(True, False, time)
-
-    def FileListIcons_key_press_event_cb(self,widget, event=None):
-        #print event.hardware_keycode
-        #print event.keyval
-        if event.keyval == 65535:
-            self.DeleteSelectedItemsFileList()
-
-    def DeleteSelectedItemsFileList( self, widget=None):
-        _widget = self.WidgetsTree.get_object("FileListIcons")
-        selection = _widget.get_selected_items()
-        #print selection
-        for s in selection:
-            self.store.remove( _widget.get_model().get_iter( s[0] ) )
-        self._check_filelist_state()
-
-
-    def ClearFileList_clicked_cb(self, widget):
-        self.store.clear()
-        self._check_filelist_state( )
-
-    def exit_event(self, widget, event):
-        print widget
-        print event.keyval
-        if event.keyval == 65307:
-            gtk.main_quit()
-
-    def UploadButton_clicked_cb(self, widget):
+    def on_UploadButton_clicked(self, widget):
         objects = [ s[0] for s in self.store]
         self.result = []
         if objects:
@@ -412,6 +359,83 @@ class gUimge:
                     self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
             self.filelistprogress.hide()
 
+    def on_About_clicked(self, widget):
+        about = self.WidgetsTree.get_object('About')
+        about.set_logo( self.guimge_icon_png)
+        about.set_icon( self.guimge_icon_ico )
+        about.set_version( GUIMGE['version'])
+        about.run()
+        about.hide()
+
+    def on_FolderOpen_clicked(self, widget):
+        self.on_FileOpen_clicked( widget, folder=True)
+
+    def on_Clipboard_clicked(self, widget):
+        result = self.make_result()
+        _clip = gtk.Clipboard()
+        _clip.clear()
+        _clip.set_text( result )
+
+
+    # FileList Page
+    def DeleteSelectedItemsFileList( self, widget=None):
+        _widget = self.WidgetsTree.get_object("FileListIcons")
+        selection = _widget.get_selected_items()
+        #print selection
+        for s in selection:
+            self.store.remove( _widget.get_model().get_iter( s[0] ) )
+        self._check_filelist_state()
+
+    def on_SelectHost_changed(self, widget):
+        self.current_host = widget.get_model()[widget.get_active()][1]
+        UIMGE.set_host( HOSTS.get( self.current_host ))
+        #print "sel host"
+        #print widget.get_active(),widget.get_model()[widget.get_active()][1], widget.name
+        #print self.current_host
+
+    def on_FileListIcons_drag_data_received( self, widget, context, x, y, selection, target_type, timestamp):
+        "Drag-n-drop"
+        if target_type == 80:
+            from urllib import unquote
+            uri = selection.data.strip()
+            files= uri.split()
+            self._add_files(
+                    [unquote(os.path.normpath(f).replace('file:',''))
+                        for f in files]
+                    )
+            self._check_filelist_state()
+
+    def on_FileListIcons_drag_motion(self,widget, context, x, y, time):
+        context.drag_status(gtk.gdk.ACTION_COPY, time)
+        return True
+
+    def on_FileListIcons_drag_drop(self,widget, context, x, y, time):
+        context.finish(True, False, time)
+
+    def on_FileListIcons_key_press_event(self,widget, event=None):
+        #print event.hardware_keycode
+        #print event.keyval
+        if event.keyval == 65535:
+            self.DeleteSelectedItemsFileList()
+
+    def on_ClearFileList_clicked(self, widget):
+        self.store.clear()
+        self._check_filelist_state( )
+
+    #Result Page
+    def on_SelectModeOutView_changed( self, widget):
+        #print widget.get_active(),widget.get_active_text(), widget.name
+        if widget.get_active() != -1:
+            key_out = widget.get_model()[widget.get_active()][1]
+            #print key_out
+            self.current_modeout = key_out
+            OUTPRINT.set_rules(key_out)
+        else:
+            #print widget.get_active_text()
+            self.current_modeout = ''
+            OUTPRINT.set_rules(usr=widget.get_active_text())
+        self.update_result_text()
+
     def update_result_text(self, widget=None):
         _result = self.make_result()
         if _result:
@@ -427,20 +451,8 @@ class gUimge:
             _delim = '\n'
         return _delim.join([OUTPRINT.get_out( r[0], r[1], r[2]) for r in self.result] )
 
-    def Clipboard_clicked_cb(self, widget):
-        result = self.make_result()
-        _clip = gtk.Clipboard()
-        _clip.clear()
-        _clip.set_text( result )
-
-    def SettingsToggle_toggled_cb(self, widget):
-        settings_vbox = self.WidgetsTree.get_object('SettingVBox')
-        if widget.get_active():
-            settings_vbox.show()
-        else:
-            settings_vbox.hide()
-
-    def SaveSettings_clicked_cb(self, widget):
+    #Settings page
+    def on_SaveSettings_clicked(self, widget):
         self.conf.set( self.conf_default_section ,'host',self.current_host)
         self.conf.set( self.conf_default_section ,'modeout',self.current_modeout)
         conf_dir = os.path.split( CONF_FILE)[0]
@@ -449,13 +461,18 @@ class gUimge:
         self.conf.write( open(CONF_FILE, 'w+b') )
         pass
 
-    def About_clicked_cb(self, widget):
-        about = self.WidgetsTree.get_object('About')
-        about.set_logo( self.guimge_icon_png)
-        about.set_icon( self.guimge_icon_ico )
-        about.set_version( GUIMGE['version'])
-        about.run()
-        about.hide()
+    def exit_event(self, widget, event):
+        print widget
+        print event.keyval
+        if event.keyval == 65307:
+            gtk.main_quit()
+
+    # def on_SettingsToggle_toggled(self, widget):
+    #     settings_vbox = self.WidgetsTree.get_object('SettingVBox')
+    #     if widget.get_active():
+    #         settings_vbox.show()
+    #     else:
+    #         settings_vbox.hide()
 
 
 def FileChooser(lastdir=False, folder_chooser=False):
@@ -529,8 +546,11 @@ def main():
     (options, args) = parser.parse_args()
     app = gUimge( filenames=args)
 
+    # gtk.gdk.threads_enter()
     gtk.main()
+    # gtk.gdk.threads_leave()
 
 if __name__ == "__main__":
+    # gtk.gdk.threads_init()
     main()
 
