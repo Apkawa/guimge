@@ -79,6 +79,7 @@ OUTPRINT = Outprint()
 
 
 
+_thread_flag = True
 class gUimge:
     lastdir = 'file://'+HOME
     result = []
@@ -113,7 +114,7 @@ class gUimge:
             'on_AddFromFolder_activate': self.on_FolderOpen_clicked,
             'on_UploadButton_clicked': self.on_UploadButton_clicked,
             'on_Clipboard_clicked': self.on_Clipboard_clicked,
-            'on_About_clicked': self.on_About_clicked,
+            'on_AboutButton_clicked': self.on_AboutButton_clicked,
             "on_ExitButton_clicked": self.exit,
             # 'on_SettingsToggle_toggled': self.on_SettingsToggle_toggled,
             # FileListPage
@@ -169,6 +170,9 @@ class gUimge:
         self.result_text = self.WidgetsTree.get_object('ResultText')
 
         #Виджеты
+        self.upload_button = self.WidgetsTree.get_object('UploadButton')
+        self.abort_button  = self.WidgetsTree.get_object("AbortButton")
+
         self.filelistprogress = self.WidgetsTree.get_object('progressbar1')
         self.cancelbutton = self.WidgetsTree.get_object( "CancelButton" )
         self.statusbar = self.WidgetsTree.get_object( "statusbar1" )
@@ -321,7 +325,7 @@ class gUimge:
             self.statusbar.push( _id , state_str )
             noclear=True
 
-        self.WidgetsTree.get_object('UploadButton').set_sensitive(noclear)
+        self.upload_button.set_sensitive(noclear)
         self.WidgetsTree.get_object('ClearFileList').set_sensitive(noclear)
         self.WidgetsTree.get_object('DeleteSelectedItems').set_sensitive(noclear)
 
@@ -345,9 +349,16 @@ class gUimge:
             print 'Closed, no files selected'
 
     def on_UploadButton_clicked(self, widget):
-        def upload_thread( obj):
+        def upload_thread( obj, thread_result):
             global UIMGE
             UIMGE.upload( unicode( obj,"utf-8") )
+            thread_result += (       UIMGE.img_url,
+                    UIMGE.img_thumb_url,
+                    UIMGE.filename
+                    )
+
+        self.upload_button.hide()
+        self.abort_button.show()
 
         objects = [ s[0] for s in self.store]
         self.result = []
@@ -365,11 +376,12 @@ class gUimge:
                        )
                 self.filelistprogress.set_fraction( float(__current_n_obj)/__all_n_obj )
                 __current_n_obj +=1
-
-                self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,) )
+                manager = multiprocessing.Manager()
+                thread_result = manager.list()
+                self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,thread_result) )
                 self.upload_thread.start()
 
-                while True:
+                while self.upload_thread.is_alive():
                     gtk.main_iteration()
                     if self.stop:
                         self.filelistprogress.set_text("Stopped...")
@@ -377,11 +389,8 @@ class gUimge:
                         break
                 if self.stop:
                     break
-                self.result.append( (
-                    UIMGE.img_url,
-                    UIMGE.img_thumb_url,
-                    UIMGE.filename
-                    ) )
+
+                self.result.append( thread_result  )
                 #print self.result
                 self.update_result_text()
                 #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
@@ -389,11 +398,14 @@ class gUimge:
 
                 if self.stop:
                     break
+
             self.stop = False
             self.cancelbutton.hide()
             self.filelistprogress.hide()
+            self.abort_button.hide()
+            self.upload_button.show()
 
-    def on_About_clicked(self, widget):
+    def on_AboutButton_clicked(self, widget):
         about = self.WidgetsTree.get_object('About')
         about.set_logo( self.guimge_icon_png)
         about.set_icon( self.guimge_icon_ico )
@@ -409,7 +421,6 @@ class gUimge:
         _clip = gtk.Clipboard()
         _clip.clear()
         _clip.set_text( result )
-
 
     # FileList Page
     def DeleteSelectedItemsFileList( self, widget=None):
@@ -455,6 +466,7 @@ class gUimge:
     def on_ClearFileList_clicked(self, widget):
         self.store.clear()
         self._check_filelist_state( )
+
     def on_CancelButton_clicked( self, widget):
         self.stop = True
 
@@ -583,6 +595,5 @@ def main():
     gtk.gdk.threads_leave()
 
 if __name__ == "__main__":
-    # gtk.gdk.threads_init()
     main()
 
