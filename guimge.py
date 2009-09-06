@@ -30,9 +30,11 @@ import gtk
 import gtk.glade
 import gobject
 
+import multiprocessing
 import threading
+import signal
 
-#gtk.gdk.threads_init()
+gtk.gdk.threads_init()
 
 #TODO: Сделать относительные пути импорта
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
@@ -62,8 +64,8 @@ else:
 GLADE_FILE = '%sguimge.glade'%DATA_DIR
 ICONS_DIR = '%sicons'%DATA_DIR
 
-UIMGE = Uimge()
 
+UIMGE = Uimge()
 
 
 GUIMGE = {'version':'0.1.4.5-1',}
@@ -74,6 +76,9 @@ HOSTS =dict( [(host.host, host ) for host in Hosts.hosts_dict.values()] )
 
 OUTPRINT = Outprint()
 
+
+
+
 class gUimge:
     lastdir = 'file://'+HOME
     result = []
@@ -81,6 +86,8 @@ class gUimge:
     guimge_icon_png = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.png')
     image_mime = ("image/png", "image/jpeg", "image/gif", "image/bmp")
     image_type = ('.png', '.jpe', '.jpg', '.jpeg', '.gif', '.bmp')
+    stop = False
+    upload_thread = None
 
     def __init__(self, filenames=None):
         from ConfigParser import ConfigParser
@@ -107,6 +114,7 @@ class gUimge:
             'on_UploadButton_clicked': self.on_UploadButton_clicked,
             'on_Clipboard_clicked': self.on_Clipboard_clicked,
             'on_About_clicked': self.on_About_clicked,
+            "on_ExitButton_clicked": self.exit,
             # 'on_SettingsToggle_toggled': self.on_SettingsToggle_toggled,
             # FileListPage
             'on_SelectHost_changed': self.on_SelectHost_changed,
@@ -116,6 +124,7 @@ class gUimge:
             'on_FileListIcons_key_press_event': self.on_FileListIcons_key_press_event,
             "on_DeleteSelectedItems_clicked": self.DeleteSelectedItemsFileList,
             'on_ClearFileList_clicked':self.on_ClearFileList_clicked,
+            "on_CancelButton_clicked": self.on_CancelButton_clicked,
             # Result Page
             'on_SelectModeOutView_changed': self.on_SelectModeOutView_changed,
             'on_DelimiterSelect_changed': self.update_result_text,
@@ -132,7 +141,6 @@ class gUimge:
             window.connect("destroy", gtk.main_quit)
         window.set_icon( self.guimge_icon_ico)
         window.show()
-
 
         self.initSelectHost()
         self.initFileListIcons( filenames)
@@ -162,6 +170,7 @@ class gUimge:
 
         #Виджеты
         self.filelistprogress = self.WidgetsTree.get_object('progressbar1')
+        self.cancelbutton = self.WidgetsTree.get_object( "CancelButton" )
         self.statusbar = self.WidgetsTree.get_object( "statusbar1" )
 
         self._check_filelist_state()
@@ -263,6 +272,8 @@ class gUimge:
     def _add_files(self, filenames):
 
         self.filelistprogress.show()
+        self.cancelbutton.show()
+
         file_list = []
         for f in filenames:
             if not os.path.isdir(f):
@@ -277,6 +288,8 @@ class gUimge:
 
         for f in file_list:
             # gtk.gdk.threads_enter()
+            if self.stop:
+                break
             self.filelistprogress.set_text(
                    'Added %i file of %i files'%( current_file_count, all_files_count)
                    )
@@ -287,7 +300,10 @@ class gUimge:
             self._add_file(f)
             # gtk.gdk.threads_leave()
             current_file_count += 1
+
+        self.stop = False
         self.filelistprogress.hide()
+        self.cancelbutton.hide()
 
     def _check_filelist_state(self):
         _store =  [ s[3] for s in self.store]
@@ -329,34 +345,52 @@ class gUimge:
             print 'Closed, no files selected'
 
     def on_UploadButton_clicked(self, widget):
+        def upload_thread( obj):
+            global UIMGE
+            UIMGE.upload( unicode( obj,"utf-8") )
+
         objects = [ s[0] for s in self.store]
         self.result = []
+        self.stop = False
         if objects:
             print "Upload!"
             __current_n_obj = 1
             __all_n_obj = len(objects)
             for obj in objects:
+                self.cancelbutton.show()
                 self.filelistprogress.show()
+
                 self.filelistprogress.set_text(
                        'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj)
                        )
                 self.filelistprogress.set_fraction( float(__current_n_obj)/__all_n_obj )
                 __current_n_obj +=1
 
-                while gtk.events_pending():
-                    gtk.main_iteration()
+                self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,) )
+                self.upload_thread.start()
 
-                state = UIMGE.upload( unicode(obj, 'utf-8') )
-                if state:
-                    self.result.append( (
-                        UIMGE.img_url,
-                        UIMGE.img_thumb_url,
-                        UIMGE.filename
-                        ) )
-                    #print self.result
-                    self.update_result_text()
-                    #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
-                    self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
+                while True:
+                    gtk.main_iteration()
+                    if self.stop:
+                        self.filelistprogress.set_text("Stopped...")
+                        self.upload_thread.terminate()
+                        break
+                if self.stop:
+                    break
+                self.result.append( (
+                    UIMGE.img_url,
+                    UIMGE.img_thumb_url,
+                    UIMGE.filename
+                    ) )
+                #print self.result
+                self.update_result_text()
+                #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
+                self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
+
+                if self.stop:
+                    break
+            self.stop = False
+            self.cancelbutton.hide()
             self.filelistprogress.hide()
 
     def on_About_clicked(self, widget):
@@ -421,6 +455,8 @@ class gUimge:
     def on_ClearFileList_clicked(self, widget):
         self.store.clear()
         self._check_filelist_state( )
+    def on_CancelButton_clicked( self, widget):
+        self.stop = True
 
     #Result Page
     def on_SelectModeOutView_changed( self, widget):
@@ -465,15 +501,11 @@ class gUimge:
         print widget
         print event.keyval
         if event.keyval == 65307:
-            gtk.main_quit()
-
-    # def on_SettingsToggle_toggled(self, widget):
-    #     settings_vbox = self.WidgetsTree.get_object('SettingVBox')
-    #     if widget.get_active():
-    #         settings_vbox.show()
-    #     else:
-    #         settings_vbox.hide()
-
+            self.exit()
+    def exit( self):
+        if self.upload_thread:
+            self.upload_thread.terminate()
+        gtk.main_quit()
 
 def FileChooser(lastdir=False, folder_chooser=False):
     chooser = gtk.FileChooserDialog(
@@ -546,9 +578,9 @@ def main():
     (options, args) = parser.parse_args()
     app = gUimge( filenames=args)
 
-    # gtk.gdk.threads_enter()
+    gtk.gdk.threads_enter()
     gtk.main()
-    # gtk.gdk.threads_leave()
+    gtk.gdk.threads_leave()
 
 if __name__ == "__main__":
     # gtk.gdk.threads_init()
