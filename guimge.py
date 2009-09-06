@@ -150,7 +150,7 @@ class gUimge:
         result_out = self.WidgetsTree.get_object('SelectModeOutView')
         result_out.set_text_column(0)
         list_store = result_out.get_model()
-        list_store.append(['Direct url','False'])
+        list_store.append(['Direct url','None'])
         for k in OUTPRINT.outprint_rules.keys():
             list_store.append(
                     [OUTPRINT.outprint_rules[k]['desc'].replace('Output in ',''),k ]
@@ -181,10 +181,11 @@ class gUimge:
 
     def initFileListIcons(self, filenames):
         self.store = gtk.ListStore( str, # path
-                                    gtk.gdk.Pixbuf, #thumb
-                                    str, # title
-                                    long, # size
-                                    )
+                                     gtk.gdk.Pixbuf, #thumb
+                                     str, # title
+                                     long, # size
+                                     )
+        #self.store = self.WidgetsTree.get_object( "FileListIconsStore" )
         icon_list = self.WidgetsTree.get_object('FileListIcons')
         icon_list.set_model( self.store)
         icon_list.set_pixbuf_column(1)
