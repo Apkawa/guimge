@@ -1,1 +1,1 @@
-from guimge import guimge
+from guimge import *
