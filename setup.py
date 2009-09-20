@@ -13,6 +13,10 @@ for dp, dn, fs in os.walk( os.path.join( name, "icons")):
     data_files.append( ( os.path.join( prefix, dp), temp, ) )
 
 data_files.append(
+        ( os.path.join( prefix, "pixmaps" ), [os.path.join( name,'icons', 'guimge.png')] ),
+)
+
+data_files.append(
         ( os.path.join( prefix, name, ),
           [os.path.join( name, "guimge.glade")],
         ))
