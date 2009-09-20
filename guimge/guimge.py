@@ -54,7 +54,7 @@ else:
     CONF_FILE = 'guimge.conf'
 
 
-if __file__.startswith('/usr/bin/'):
+if __file__.startswith('/usr'):
     DATA_DIR = '/usr/share/guimge/'
     CONF_FILE = os.path.join(HOME,'.guimge','guimge.conf')
 else:
