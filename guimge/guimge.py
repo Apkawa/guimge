@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
-    This file is part of uimge.
+    This file is part of guimge.
 
     Uploader picture to different imagehosting Copyright (C) 2008 apkawa@gmail.com
 
-    uimge is free software: you can redistribute it and/or modify
+    guimge is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
+    guimge is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -40,7 +40,7 @@ gtk.gdk.threads_init()
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
 #TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
-sys.path.insert(0, os.path.abspath("..") )
+sys.path.insert(0, os.path.dirname(os.path.abspath("..") ) )
 from uimge import Uimge, Outprint, Hosts
 
 
@@ -58,11 +58,11 @@ if __file__.startswith('/usr/bin/'):
     DATA_DIR = '/usr/share/guimge/'
     CONF_FILE = os.path.join(HOME,'.guimge','guimge.conf')
 else:
-    DATA_DIR = ''
+    DATA_DIR = os.path.abspath( os.path.dirname(__file__ ) )
     CONF_FILE = 'guimge.conf'
 
-GLADE_FILE = '%sguimge.glade'%DATA_DIR
-ICONS_DIR = '%sicons'%DATA_DIR
+GLADE_FILE = os.path.join( DATA_DIR,'guimge.glade')
+ICONS_DIR = os.path.join( DATA_DIR, 'icons')
 
 
 UIMGE = Uimge()
