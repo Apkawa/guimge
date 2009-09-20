@@ -36,7 +36,7 @@ setup(name='guimge',
       data_files=data_files,
       entry_points = {
         'console_scripts':[
-            'guimge = guimge.guimge:main'
+            'guimge = guimge:main'
         ]
         }
 
