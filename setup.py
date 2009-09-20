@@ -24,9 +24,6 @@ data_files.append(
         ( "/usr/share/applications/",
           [os.path.join( name, "guimge.desktop") ] ) )
 
-
-
-
 setup(name='guimge',
       version = guimge.GUIMGE["version"],
       description='guimge - gui for uimge',
@@ -39,7 +36,7 @@ setup(name='guimge',
       data_files=data_files,
       entry_points = {
         'console_scripts':[
-            'guimge = guimge:main'
+            'guimge = guimge.guimge:main'
         ]
         }
 
