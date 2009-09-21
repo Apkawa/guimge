@@ -24,11 +24,10 @@
 import sys
 import os
 
-
-
 import gtk
-import gtk.glade
 import gobject
+
+from glib import GError
 
 import multiprocessing
 import threading
@@ -40,7 +39,8 @@ gtk.gdk.threads_init()
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
 #TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
-sys.path.insert(0, os.path.dirname(os.path.abspath("..") ) )
+_path = os.path.join( os.path.dirname(os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) )), "uimge")
+sys.path.insert(0, _path )
 from uimge import Uimge, Outprint, Hosts
 
 
@@ -201,6 +201,25 @@ class gUimge:
             self._check_filelist_state()
 
     def initSelectHost(self):
+        def get_favicon( host, ico_path):
+            if not os.path.exists(ico_path):
+                import urllib
+                u = urllib.urlopen('http://favicon.yandex.net/favicon/%s'%host).read()
+                #http://www.google.com/s2/favicons?domain=www.labnol.org
+                with open( '/tmp/tmp.png','w+b') as tmp:
+                    tmp.write( u )
+                tmp_ico = gtk.gdk.pixbuf_new_from_file("/tmp/tmp.png")
+                if tmp_ico.get_width() == 1:
+                    _ico = fail_icon
+                    fail_icon.save( ico_path, "png" )
+                else:
+                    _ico = tmp_ico.scale_simple( 16,16, gtk.gdk.INTERP_HYPER)
+                    tmp_ico.save( ico_path,"png" )
+            else:
+                _ico = gtk.gdk.pixbuf_new_from_file( ico_path)
+
+            return _ico
+
         "Устанавливаем выпадающий список выбора хостингов c иконостасом"
         self.SelectHost = self.WidgetsTree.get_object("SelectHost")
         list_store = gtk.ListStore( gtk.gdk.Pixbuf, str)
@@ -213,22 +232,16 @@ class gUimge:
         self.SelectHost.pack_start(crt,False)
         self.SelectHost.add_attribute(crt, 'text', 1)
 
-        for host in HOSTS.keys():
-            ico_name = host+'.ico'
-            ico_dir = os.path.join ( ICONS_DIR, 'hosts')
-            ico_path = os.path.join( ico_dir,ico_name)
+        fail_icon = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
 
-            if not os.path.exists(ico_path):
-                import urllib
-                u = urllib.urlopen('http://%s/favicon.ico'%host)
-                print ico_path
-                t = open( ico_path, 'w+b')
-                t.write(u.read())
-                t.close()
-            try:
-                ico = gtk.gdk.pixbuf_new_from_file_at_size( ico_path, 16,16)
-            except:
-                ico = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
+        ico_dir = os.path.join( ICONS_DIR, 'hosts')
+        for host in HOSTS.keys():
+            ico_name = host+'.png'
+            ico_path = os.path.join( ico_dir,ico_name)
+            #_ico = gtk.gdk.pixbuf_new_from_file_at_size( os.path.join(ico_dir, old_ico_name), 16,16)
+            #_ico.save( ico_path,"png")
+            ico = get_favicon( host, ico_path )
+
             self.SelectHost.get_model().append( [ico, host] )
         _active = HOSTS.keys().index( self.default_host)
         #print self.default_host
