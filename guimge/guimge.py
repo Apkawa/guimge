@@ -58,12 +58,13 @@ if __file__.startswith('/usr'):
     DATA_DIR = '/usr/share/guimge/'
     CONF_FILE = os.path.join(HOME,'.guimge','guimge.conf')
 else:
-    DATA_DIR = os.path.abspath( os.path.dirname(__file__ ) )
+    DATA_DIR = os.path.dirname( os.path.abspath( __file__ ) )
     CONF_FILE = 'guimge.conf'
 
-GLADE_FILE = os.path.join( DATA_DIR,'guimge.glade')
+GLADE_FILE = os.path.join( DATA_DIR,'ui','guimge.ui')
 ICONS_DIR = os.path.join( DATA_DIR, 'icons')
 
+    
 
 UIMGE = Uimge()
 
@@ -91,9 +92,15 @@ class gUimge:
     upload_thread = None
 
     def __init__(self, filenames=None):
+        '''
+        иницилизация программы
+        `filenames` - список файлов
+        '''
+        #Загрузка конфига.
         from ConfigParser import ConfigParser
         self.conf = ConfigParser( )#
         self.conf_default_section = 'defaults'
+
         if os.path.exists( CONF_FILE ):
             self.conf.read( CONF_FILE)
         else:
@@ -102,12 +109,13 @@ class gUimge:
             self.conf.add_section( self.conf_default_section )
             for key, val in _defaults.items():
                 self.conf.set( self.conf_default_section, key, val)
+
         self.default_host = self.conf.get( self.conf_default_section, 'host')
         self.default_modeout = self.conf.get( self.conf_default_section, 'modeout')
-        #print self.conf.items( self.conf_default_section)
-
+        
+        
         self.WidgetsTree = gtk.Builder()
-        self.WidgetsTree.add_from_file( GLADE_FILE )
+        self.WidgetsTree.add_from_file( GLADE_FILE ) # загрузка ui файла
         conn = {
             # Toolbar 
             'on_FileOpen_clicked': self.on_FileOpen_clicked,
@@ -116,7 +124,6 @@ class gUimge:
             'on_Clipboard_clicked': self.on_Clipboard_clicked,
             'on_AboutButton_clicked': self.on_AboutButton_clicked,
             "on_ExitButton_clicked": self.exit,
-            # 'on_SettingsToggle_toggled': self.on_SettingsToggle_toggled,
             # FileListPage
             'on_SelectHost_changed': self.on_SelectHost_changed,
             'on_FileListIcons_drag_data_received':self.on_FileListIcons_drag_data_received,
@@ -135,16 +142,16 @@ class gUimge:
             'gtk_main_quit': gtk.main_quit,
             'exit_event': self.exit_event,
             }
-        self.WidgetsTree.connect_signals( conn)
+        self.WidgetsTree.connect_signals( conn) # подключаем сигналы
 
-        window = self.WidgetsTree.get_object( 'gUimge_multiple')
+        window = self.WidgetsTree.get_object( 'gUimge_multiple') # основное окно
         if (window):
             window.connect("destroy", gtk.main_quit)
         window.set_icon( self.guimge_icon_ico)
         window.show()
-
-        self.initSelectHost()
-        self.initFileListIcons( filenames)
+        
+        self.initSelectHost() # создаем список хостингов
+        self.initFileListIcons( filenames) # создаем виджет списка файлов
 
         #Устанавливаем список outprint'a
         result_out = self.WidgetsTree.get_object('SelectModeOutView')
@@ -179,13 +186,15 @@ class gUimge:
 
         self._check_filelist_state()
 
-    def initFileListIcons(self, filenames):
-        self.store = gtk.ListStore( str, # path
-                                     gtk.gdk.Pixbuf, #thumb
-                                     str, # title
-                                     long, # size
+    def initFileListIcons(self, filenames=None):
+        '''
+        Create File List
+        '''
+        self.store = gtk.ListStore( str,             # path
+                                     gtk.gdk.Pixbuf, # thumb pic
+                                     str,            # title
+                                     long,           # size
                                      )
-        #self.store = self.WidgetsTree.get_object( "FileListIconsStore" )
         icon_list = self.WidgetsTree.get_object('FileListIcons')
         icon_list.set_model( self.store)
         icon_list.set_pixbuf_column(1)
@@ -196,6 +205,7 @@ class gUimge:
                 gtk.DEST_DEFAULT_DROP ,
                 self.dnd_list,
                 gtk.gdk.ACTION_COPY)
+
         if filenames:
             self._add_files(filenames)
             self._check_filelist_state()
@@ -235,15 +245,18 @@ class gUimge:
         fail_icon = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
 
         ico_dir = os.path.join( ICONS_DIR, 'hosts')
-        for host in HOSTS.keys():
+        hosts = sorted( HOSTS.keys() )
+        for host in hosts:
             ico_name = host+'.png'
             ico_path = os.path.join( ico_dir,ico_name)
             #_ico = gtk.gdk.pixbuf_new_from_file_at_size( os.path.join(ico_dir, old_ico_name), 16,16)
             #_ico.save( ico_path,"png")
             ico = get_favicon( host, ico_path )
 
-            self.SelectHost.get_model().append( [ico, host] )
-        _active = HOSTS.keys().index( self.default_host)
+            list_store.append( [ico, host] )
+
+        _active = hosts.index( self.default_host)
+
         #print self.default_host
         self.SelectHost.set_active( _active  )
 
