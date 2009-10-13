@@ -39,8 +39,6 @@ gtk.gdk.threads_init()
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
 #TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
-_path = os.path.join( os.path.dirname(os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) )), "uimge")
-sys.path.insert(0, _path )
 from uimge import Uimge, Outprint, Hosts
 
 
@@ -56,20 +54,20 @@ else:
 
 if __file__.startswith('/usr'):
     DATA_DIR = '/usr/share/guimge/'
-    CONF_FILE = os.path.join(HOME,'.guimge','guimge.conf')
+    CONF_FILE = os.path.join(HOME,'.config','guimge','guimge.conf')
 else:
+    _path = os.path.join( os.path.dirname( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) )), "uimge")
+    sys.path.insert(0, _path )
     DATA_DIR = os.path.dirname( os.path.abspath( __file__ ) )
     CONF_FILE = 'guimge.conf'
 
 GLADE_FILE = os.path.join( DATA_DIR,'ui','guimge.ui')
 ICONS_DIR = os.path.join( DATA_DIR, 'icons')
 
-    
-
 UIMGE = Uimge()
 
 
-GUIMGE = {'version':'0.1.4.5-1',}
+GUIMGE = {'version':'0.1.4.6-1',}
 
 
 #__hosts = UIMGE.hosts()
@@ -81,8 +79,71 @@ OUTPRINT = Outprint()
 
 
 _thread_flag = True
+
+import ConfigParser
+class gUimge_config:
+    conf_default_section = 'main'
+    default = { conf_default_section:
+                {'host':'radikal.ru'},
+        }
+    _dict_conf = {}
+    _modify = False
+    def __init__(self):
+        """docstring for __init__"""
+        self.conf = ConfigParser.ConfigParser( )
+        self._dict_conf.update( self.default )
+
+    def read_conf(self, conf):
+        """docstring for read"""
+        if os.path.exists( conf ):
+            self.conf.read( conf )
+            for sec in self.conf.sections():
+                for opt in self.conf.options( sec):
+                    self._dict_conf[sec].update({ opt: self.conf.get( sec, opt)})
+        print "read: ",self._dict_conf
+
+    def save_conf(self, conf):
+        """docstring for save"""
+        if self._modify:
+            for mskey, sval in self._dict_conf.items():
+                try:
+                    self.conf.add_section( mskey )
+                except ConfigParser.DuplicateSectionError:
+                    pass
+                for key, val in sval.items():
+                    self.conf.set( mskey, key, val)
+
+        conf_dir = os.path.split( conf )[0]
+        if conf_dir and not os.path.exists(conf_dir):
+            os.makedirs( conf_dir)
+        self.conf.write( open( conf, 'w+b') )
+        print self._dict_conf
+
+    def set_main(self, key, val):
+        """docstring for set_main"""
+        self._dict_conf[ self.conf_default_section ].update( { key:val } )
+        self._modify = True
+
+    def get_main(self, key, _eval=False):
+        """docstring for get_main"""
+        val = self._dict_conf[ self.conf_default_section ].get(key, None)
+        if _eval:
+            return eval(str(val))
+        else:
+            return val
+
+    def del_main(self, key):
+        """docstring for del_main"""
+        try:
+            self.conf.remove_option( self.conf_default_section, key)
+        except ConfigParser.NoSectionError:
+            pass
+        self._dict_conf[self.conf_default_section].pop(key,None)
+        self._modify = True
+        self
+
+
 class gUimge:
-    lastdir = 'file://'+HOME
     result = []
     guimge_icon_ico = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.ico')
     guimge_icon_png = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.png')
@@ -97,23 +158,11 @@ class gUimge:
         `filenames` - список файлов
         '''
         #Загрузка конфига.
-        from ConfigParser import ConfigParser
-        self.conf = ConfigParser( )#
-        self.conf_default_section = 'defaults'
+        self.config = gUimge_config()
+        self.config.read_conf( CONF_FILE )
+        self.default_host = self.config.get_main('host')
+        self.default_modeout = self.config.get_main('modeout')
 
-        if os.path.exists( CONF_FILE ):
-            self.conf.read( CONF_FILE)
-        else:
-            print 'Not found config'
-            _defaults={'host':'radikal.ru', 'modeout': 'False',"proxy":""}
-            self.conf.add_section( self.conf_default_section )
-            for key, val in _defaults.items():
-                self.conf.set( self.conf_default_section, key, val)
-
-        self.default_host = self.conf.get( self.conf_default_section, 'host')
-        self.default_modeout = self.conf.get( self.conf_default_section, 'modeout')
-        
-        
         self.WidgetsTree = gtk.Builder()
         self.WidgetsTree.add_from_file( GLADE_FILE ) # загрузка ui файла
         conn = {
@@ -138,18 +187,20 @@ class gUimge:
             'on_DelimiterSelect_changed': self.update_result_text,
             # Settings Page
             'on_SaveSettings_clicked':self.on_SaveSettings_clicked,
+            'on_SaveOnExit_toggled':self.on_SaveOnExit_toggled,
+            'on_SelStartDir_file_set':self.on_SelStartDir_file_set,
+            'on_CheckLastDir_toggled':self.on_CheckLastDir_toggled,
             # Other
-            'gtk_main_quit': gtk.main_quit,
+            'gtk_main_quit': self.exit,
             'exit_event': self.exit_event,
             }
         self.WidgetsTree.connect_signals( conn) # подключаем сигналы
 
-        window = self.WidgetsTree.get_object( 'gUimge_multiple') # основное окно
+        window = self.WidgetsTree.get_object( 'main_window') # основное окно
         if (window):
             window.connect("destroy", gtk.main_quit)
         window.set_icon( self.guimge_icon_ico)
         window.show()
-        
         self.initSelectHost() # создаем список хостингов
         self.initFileListIcons( filenames) # создаем виджет списка файлов
 
@@ -162,7 +213,7 @@ class gUimge:
             list_store.append(
                     [OUTPRINT.outprint_rules[k]['desc'].replace('Output in ',''),k ]
                     )
-        if self.default_modeout == 'False':
+        if not self.default_modeout:
             result_out.set_active( 0 )
         else:
             _active = OUTPRINT.outprint_rules.keys().index( self.default_modeout )
@@ -174,17 +225,33 @@ class gUimge:
         self.delim.append_text('\\n')
         self.delim.set_active(0)
 
-        self.result_text = self.WidgetsTree.get_object('ResultText')
+
+        #Чтение и определение стартовой директории.
+        _sd = self.config.get_main( 'startdir')
+        _ld = self.config.get_main( 'lastdir' )
+        if _ld:
+            self.lastdir = _ld
+            print self.lastdir
+            self.WidgetsTree.get_object('CheckLastDir').set_active(True)
+            self.WidgetsTree.get_object('SelStartDir').set_sensitive(False)
+        elif _sd:
+            self.lastdir = 'file://'+_sd
+        else:
+            self.lastdir = 'file://'+HOME
 
         #Виджеты
+        self.result_text = self.WidgetsTree.get_object('ResultText')
         self.upload_button = self.WidgetsTree.get_object('UploadButton')
         self.abort_button  = self.WidgetsTree.get_object("AbortButton")
 
         self.filelistprogress = self.WidgetsTree.get_object('progressbar1')
         self.cancelbutton = self.WidgetsTree.get_object( "CancelButton" )
+        self.uploadprogressvbox = self.WidgetsTree.get_object("uploadprogressvbox")
         self.statusbar = self.WidgetsTree.get_object( "statusbar1" )
-
         self._check_filelist_state()
+
+        self.WidgetsTree.get_object('SaveOnExit').set_active( self.config.get_main('save_on_exit', _eval=True) or False )
+        self.WidgetsTree.get_object('SelStartDir').set_current_folder_uri(self.lastdir)
 
     def initFileListIcons(self, filenames=None):
         '''
@@ -301,10 +368,7 @@ class gUimge:
         self.store.append([f, pixbuf, title, size])
 
     def _add_files(self, filenames):
-
-        self.filelistprogress.show()
-        self.cancelbutton.show()
-
+        self.uploadprogressvbox.show()
         file_list = []
         for f in filenames:
             if not os.path.isdir(f):
@@ -333,8 +397,7 @@ class gUimge:
             current_file_count += 1
 
         self.stop = False
-        self.filelistprogress.hide()
-        self.cancelbutton.hide()
+        self.uploadprogressvbox.hide()
 
     def _check_filelist_state(self):
         _store =  [ s[3] for s in self.store]
@@ -386,6 +449,7 @@ class gUimge:
 
         self.upload_button.hide()
         self.abort_button.show()
+        self.uploadprogressvbox.show()
 
         objects = [ s[0] for s in self.store]
         self.result = []
@@ -395,9 +459,6 @@ class gUimge:
             __current_n_obj = 1
             __all_n_obj = len(objects)
             for obj in objects:
-                self.cancelbutton.show()
-                self.filelistprogress.show()
-
                 self.filelistprogress.set_text(
                        'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj)
                        )
@@ -427,8 +488,7 @@ class gUimge:
                     break
 
             self.stop = False
-            self.cancelbutton.hide()
-            self.filelistprogress.hide()
+            self.uploadprogressvbox.hide()
             self.abort_button.hide()
             self.upload_button.show()
 
@@ -461,6 +521,7 @@ class gUimge:
     def on_SelectHost_changed(self, widget):
         self.current_host = widget.get_model()[widget.get_active()][1]
         UIMGE.set_host( HOSTS.get( self.current_host ))
+        self.config.set_main('host', self.current_host)
         #print "sel host"
         #print widget.get_active(),widget.get_model()[widget.get_active()][1], widget.name
         #print self.current_host
@@ -528,23 +589,44 @@ class gUimge:
 
     #Settings page
     def on_SaveSettings_clicked(self, widget):
-        self.conf.set( self.conf_default_section ,'host',self.current_host)
-        self.conf.set( self.conf_default_section ,'modeout',self.current_modeout)
-        conf_dir = os.path.split( CONF_FILE)[0]
-        if conf_dir and not os.path.exists(conf_dir):
-            os.makedirs( conf_dir)
-        self.conf.write( open(CONF_FILE, 'w+b') )
+        self.on_CheckLastDir_toggled()
+        self.config.set_main( 'host',self.current_host)
+        self.config.set_main( 'modeout',self.current_modeout )
+        self.config.save_conf( CONF_FILE )
         pass
+
+    def on_SaveOnExit_toggled(self, widget):
+        """docstringfname for on_SaveOnExit_toggled"""
+        self.config.set_main('save_on_exit', widget.get_active())
+
+    def on_SelStartDir_file_set(self, widget):
+        """docstring for on_SelStartDir_file_set"""
+        startdir = widget.get_filename()
+        self.config.set_main('startdir', startdir)
+        self.lastdir = 'file://'+startdir
+    def on_CheckLastDir_toggled(self, widget=None):
+        """docstring for on_CheckLastDir_toggled"""
+        active =widget.get_active() if widget else self.WidgetsTree.get_object('CheckLastDir').get_active()
+        if active:
+            self.config.set_main('lastdir', self.lastdir)
+            self.WidgetsTree.get_object('SelStartDir').set_sensitive( False)
+        else:
+            self.config.del_main('lastdir')
+            self.WidgetsTree.get_object('SelStartDir').set_sensitive( True)
 
     def exit_event(self, widget, event):
         print widget
         print event.keyval
         if event.keyval == 65307:
             self.exit()
-    def exit( self):
+
+    def exit( self, widget=None):
         if self.upload_thread:
             self.upload_thread.terminate()
+        if self.config.get_main( 'save_on_exit', _eval=True):
+            self.config.save_conf( CONF_FILE)
         gtk.main_quit()
+
 
 def FileChooser(lastdir=False, folder_chooser=False):
     chooser = gtk.FileChooserDialog(
@@ -602,14 +684,12 @@ def FileChooser(lastdir=False, folder_chooser=False):
     chooser.connect("update-preview", update_preview ,preview )
     return chooser
 
-
 def human(num, prefix=" ", suffix='b'):
     num=float(num)
     for x in ['','K','M','G','T']:
         if num<1024:
             return "%3.1f%s%s%s" % (num, prefix, x,  suffix)
         num /=1024
-
 
 def main():
     from optparse import OptionParser
@@ -623,4 +703,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
