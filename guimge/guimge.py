@@ -196,13 +196,12 @@ class gUimge:
             }
         self.WidgetsTree.connect_signals( conn) # подключаем сигналы
 
+
         window = self.WidgetsTree.get_object( 'main_window') # основное окно
         if (window):
             window.connect("destroy", gtk.main_quit)
         window.set_icon( self.guimge_icon_ico)
         window.show()
-        self.initSelectHost() # создаем список хостингов
-        self.initFileListIcons( filenames) # создаем виджет списка файлов
 
         #Устанавливаем список outprint'a
         result_out = self.WidgetsTree.get_object('SelectModeOutView')
@@ -248,10 +247,14 @@ class gUimge:
         self.cancelbutton = self.WidgetsTree.get_object( "CancelButton" )
         self.uploadprogressvbox = self.WidgetsTree.get_object("uploadprogressvbox")
         self.statusbar = self.WidgetsTree.get_object( "statusbar1" )
-        self._check_filelist_state()
-
+        #установка опций.
         self.WidgetsTree.get_object('SaveOnExit').set_active( self.config.get_main('save_on_exit', _eval=True) or False )
         self.WidgetsTree.get_object('SelStartDir').set_current_folder_uri(self.lastdir)
+
+
+        self.initSelectHost() # создаем список хостингов
+        self.initFileListIcons( filenames) # создаем виджет списка файлов
+
 
     def initFileListIcons(self, filenames=None):
         '''
@@ -262,6 +265,7 @@ class gUimge:
                                      str,            # title
                                      long,           # size
                                      )
+
         icon_list = self.WidgetsTree.get_object('FileListIcons')
         icon_list.set_model( self.store)
         icon_list.set_pixbuf_column(1)
@@ -401,6 +405,7 @@ class gUimge:
 
     def _check_filelist_state(self):
         _store =  [ s[3] for s in self.store]
+
         if not _store:
             noclear=False
         else:
@@ -418,6 +423,39 @@ class gUimge:
         self.upload_button.set_sensitive(noclear)
         self.WidgetsTree.get_object('ClearFileList').set_sensitive(noclear)
         self.WidgetsTree.get_object('DeleteSelectedItems').set_sensitive(noclear)
+
+    def _uploading(self, obj):
+        """docstring for _uploading"""
+        def upload_thread( obj, thread_result):
+            global UIMGE
+            UIMGE.upload( unicode( obj,"utf-8") )
+            thread_result += (       UIMGE.img_url,
+                    UIMGE.img_thumb_url,
+                    UIMGE.filename
+                    )
+
+        if sys.platform != "win32":
+            manager = multiprocessing.Manager()
+            thread_result = manager.list()
+            self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,thread_result) )
+            self.upload_thread.start()
+
+            while self.upload_thread.is_alive():
+                gtk.main_iteration()
+                if self.stop:
+                    self.filelistprogress.set_text("Stopped...")
+                    self.upload_thread.terminate()
+                    break
+            return thread_result
+        else:
+            global UIMGE
+            UIMGE.upload( unicode( obj,"utf-8") )
+
+            _result = ( UIMGE.img_url,
+                            UIMGE.img_thumb_url,
+                            UIMGE.filename
+                            )
+
 
     #Events
     #Toolbar
@@ -439,13 +477,6 @@ class gUimge:
             print 'Closed, no files selected'
 
     def on_UploadButton_clicked(self, widget):
-        def upload_thread( obj, thread_result):
-            global UIMGE
-            UIMGE.upload( unicode( obj,"utf-8") )
-            thread_result += (       UIMGE.img_url,
-                    UIMGE.img_thumb_url,
-                    UIMGE.filename
-                    )
 
         self.upload_button.hide()
         self.abort_button.show()
@@ -463,29 +494,16 @@ class gUimge:
                        'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj)
                        )
                 self.filelistprogress.set_fraction( float(__current_n_obj)/__all_n_obj )
-                __current_n_obj +=1
-                manager = multiprocessing.Manager()
-                thread_result = manager.list()
-                self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,thread_result) )
-                self.upload_thread.start()
-
-                while self.upload_thread.is_alive():
+                while gtk.events_pending():
                     gtk.main_iteration()
-                    if self.stop:
-                        self.filelistprogress.set_text("Stopped...")
-                        self.upload_thread.terminate()
-                        break
+                __current_n_obj +=1
+
+                _result = self._uploading( obj)
                 if self.stop:
                     break
-
-                self.result.append( thread_result  )
-                #print self.result
+                self.result.append( _result  )
                 self.update_result_text()
-                #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
                 self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
-
-                if self.stop:
-                    break
 
             self.stop = False
             self.uploadprogressvbox.hide()
