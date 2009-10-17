@@ -17,7 +17,7 @@ data_files.append(
 
 data_files.append(
         ( os.path.join( prefix, name, "ui" ),
-          [os.path.join( name, "ui", "guimge.glade")],
+          [os.path.join( name, "ui", "guimge.ui")],
         ))
 data_files.append(
         ( "/usr/share/applications/",
