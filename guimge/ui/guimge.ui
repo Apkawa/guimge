@@ -808,20 +808,6 @@
                                         <property name="use_markup">True</property>
                                       </object>
                                     </child>
-=======
-                                        <property name="visible">True</property>
-                                        <property name="can_focus">True</property>
-                                        <property name="invisible_char">&#x2022;</property>
-                                      </object>
-                                    </child>
-                                    <child type="label">
-                                      <object class="GtkLabel" id="label10">
-                                        <property name="visible">True</property>
-                                        <property name="label" translatable="yes">&lt;b&gt;Login&lt;/b&gt;</property>
-                                        <property name="use_markup">True</property>
-                                      </object>
-                                    </child>
->>>>>>> development
                                   </object>
                                   <packing>
                                     <property name="position">0</property>
@@ -991,6 +977,14 @@
       </object>
     </child>
   </object>
+  <object class="GtkAdjustment" id="adjustment1">
+    <property name="value">5</property>
+    <property name="lower">5</property>
+    <property name="upper">100</property>
+    <property name="step_increment">1</property>
+    <property name="page_increment">10</property>
+    <property name="page_size">10</property>
+  </object>
   <object class="GtkMenu" id="FileMethod">
     <property name="visible">True</property>
     <child>
@@ -1053,12 +1047,12 @@
   </object>
   <object class="GtkSizeGroup" id="ProxySettingssizegroup1">
     <widgets>
-      <widget name="ProxyTypeChoice"/>
       <widget name="spinbutton1"/>
       <widget name="entry3"/>
       <widget name="ProxyTypeChoice"/>
       <widget name="entry3"/>
       <widget name="spinbutton1"/>
+      <widget name="ProxyTypeChoice"/>
     </widgets>
   </object>
   <object class="GtkListStore" id="SelectModeOutViewListStore">
