@@ -1,4 +1,3 @@
-#from distutils.core import setup
 from setuptools import setup, find_packages
 from guimge import guimge
 
@@ -17,8 +16,8 @@ data_files.append(
 )
 
 data_files.append(
-        ( os.path.join( prefix, name, ),
-          [os.path.join( name, "guimge.glade")],
+        ( os.path.join( prefix, name, "ui" ),
+          [os.path.join( name, "ui", "guimge.ui")],
         ))
 data_files.append(
         ( "/usr/share/applications/",
@@ -32,13 +31,11 @@ setup(name='guimge',
       url='http://code.google.com/p/uimge/',
       download_url = 'http://github.com/Apkawa/uimge/',
       license='GPLv3',
-      packages=find_packages(),#['guimge'],
+      packages=find_packages(),
       data_files=data_files,
       entry_points = {
         'console_scripts':[
             'guimge = guimge:main'
         ]
         }
-
-
      )

@@ -24,11 +24,10 @@
 import sys
 import os
 
-
-
 import gtk
-import gtk.glade
 import gobject
+
+from glib import GError
 
 import multiprocessing
 import threading
@@ -40,7 +39,6 @@ gtk.gdk.threads_init()
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
 #TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
-sys.path.insert(0, os.path.dirname(os.path.abspath("..") ) )
 from uimge import Uimge, Outprint, Hosts
 
 
@@ -56,19 +54,20 @@ else:
 
 if __file__.startswith('/usr'):
     DATA_DIR = '/usr/share/guimge/'
-    CONF_FILE = os.path.join(HOME,'.guimge','guimge.conf')
+    CONF_FILE = os.path.join(HOME,'.config','guimge','guimge.conf')
 else:
-    DATA_DIR = os.path.abspath( os.path.dirname(__file__ ) )
+    _path = os.path.join( os.path.dirname( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) )), "uimge")
+    sys.path.insert(0, _path )
+    DATA_DIR = os.path.dirname( os.path.abspath( __file__ ) )
     CONF_FILE = 'guimge.conf'
 
-GLADE_FILE = os.path.join( DATA_DIR,'guimge.glade')
+GLADE_FILE = os.path.join( DATA_DIR,'ui','guimge.ui')
 ICONS_DIR = os.path.join( DATA_DIR, 'icons')
-
 
 UIMGE = Uimge()
 
 
-GUIMGE = {'version':'0.1.4.5-1',}
+GUIMGE = {'version':'0.1.4.6-1',}
 
 
 #__hosts = UIMGE.hosts()
@@ -80,8 +79,71 @@ OUTPRINT = Outprint()
 
 
 _thread_flag = True
+
+import ConfigParser
+class gUimge_config:
+    conf_default_section = 'main'
+    default = { conf_default_section:
+                {'host':'radikal.ru'},
+        }
+    _dict_conf = {}
+    _modify = False
+    def __init__(self):
+        """docstring for __init__"""
+        self.conf = ConfigParser.ConfigParser( )
+        self._dict_conf.update( self.default )
+
+    def read_conf(self, conf):
+        """docstring for read"""
+        if os.path.exists( conf ):
+            self.conf.read( conf )
+            for sec in self.conf.sections():
+                for opt in self.conf.options( sec):
+                    self._dict_conf[sec].update({ opt: self.conf.get( sec, opt)})
+        print "read: ",self._dict_conf
+
+    def save_conf(self, conf):
+        """docstring for save"""
+        if self._modify:
+            for mskey, sval in self._dict_conf.items():
+                try:
+                    self.conf.add_section( mskey )
+                except ConfigParser.DuplicateSectionError:
+                    pass
+                for key, val in sval.items():
+                    self.conf.set( mskey, key, val)
+
+        conf_dir = os.path.split( conf )[0]
+        if conf_dir and not os.path.exists(conf_dir):
+            os.makedirs( conf_dir)
+        self.conf.write( open( conf, 'w+b') )
+        print self._dict_conf
+
+    def set_main(self, key, val):
+        """docstring for set_main"""
+        self._dict_conf[ self.conf_default_section ].update( { key:val } )
+        self._modify = True
+
+    def get_main(self, key, _eval=False):
+        """docstring for get_main"""
+        val = self._dict_conf[ self.conf_default_section ].get(key, None)
+        if _eval:
+            return eval(str(val))
+        else:
+            return val
+
+    def del_main(self, key):
+        """docstring for del_main"""
+        try:
+            self.conf.remove_option( self.conf_default_section, key)
+        except ConfigParser.NoSectionError:
+            pass
+        self._dict_conf[self.conf_default_section].pop(key,None)
+        self._modify = True
+        self
+
+
 class gUimge:
-    lastdir = 'file://'+HOME
     result = []
     guimge_icon_ico = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.ico')
     guimge_icon_png = gtk.gdk.pixbuf_new_from_file( ICONS_DIR+os.path.sep+'guimge.png')
@@ -91,23 +153,18 @@ class gUimge:
     upload_thread = None
 
     def __init__(self, filenames=None):
-        from ConfigParser import ConfigParser
-        self.conf = ConfigParser( )#
-        self.conf_default_section = 'defaults'
-        if os.path.exists( CONF_FILE ):
-            self.conf.read( CONF_FILE)
-        else:
-            print 'Not found config'
-            _defaults={'host':'radikal.ru', 'modeout': 'False',"proxy":""}
-            self.conf.add_section( self.conf_default_section )
-            for key, val in _defaults.items():
-                self.conf.set( self.conf_default_section, key, val)
-        self.default_host = self.conf.get( self.conf_default_section, 'host')
-        self.default_modeout = self.conf.get( self.conf_default_section, 'modeout')
-        #print self.conf.items( self.conf_default_section)
+        '''
+        иницилизация программы
+        `filenames` - список файлов
+        '''
+        #Загрузка конфига.
+        self.config = gUimge_config()
+        self.config.read_conf( CONF_FILE )
+        self.default_host = self.config.get_main('host')
+        self.default_modeout = self.config.get_main('modeout')
 
         self.WidgetsTree = gtk.Builder()
-        self.WidgetsTree.add_from_file( GLADE_FILE )
+        self.WidgetsTree.add_from_file( GLADE_FILE ) # загрузка ui файла
         conn = {
             # Toolbar 
             'on_FileOpen_clicked': self.on_FileOpen_clicked,
@@ -116,7 +173,6 @@ class gUimge:
             'on_Clipboard_clicked': self.on_Clipboard_clicked,
             'on_AboutButton_clicked': self.on_AboutButton_clicked,
             "on_ExitButton_clicked": self.exit,
-            # 'on_SettingsToggle_toggled': self.on_SettingsToggle_toggled,
             # FileListPage
             'on_SelectHost_changed': self.on_SelectHost_changed,
             'on_FileListIcons_drag_data_received':self.on_FileListIcons_drag_data_received,
@@ -131,20 +187,21 @@ class gUimge:
             'on_DelimiterSelect_changed': self.update_result_text,
             # Settings Page
             'on_SaveSettings_clicked':self.on_SaveSettings_clicked,
+            'on_SaveOnExit_toggled':self.on_SaveOnExit_toggled,
+            'on_SelStartDir_file_set':self.on_SelStartDir_file_set,
+            'on_CheckLastDir_toggled':self.on_CheckLastDir_toggled,
             # Other
-            'gtk_main_quit': gtk.main_quit,
+            'gtk_main_quit': self.exit,
             'exit_event': self.exit_event,
             }
-        self.WidgetsTree.connect_signals( conn)
+        self.WidgetsTree.connect_signals( conn) # подключаем сигналы
 
-        window = self.WidgetsTree.get_object( 'gUimge_multiple')
+
+        window = self.WidgetsTree.get_object( 'main_window') # основное окно
         if (window):
             window.connect("destroy", gtk.main_quit)
         window.set_icon( self.guimge_icon_ico)
         window.show()
-
-        self.initSelectHost()
-        self.initFileListIcons( filenames)
 
         #Устанавливаем список outprint'a
         result_out = self.WidgetsTree.get_object('SelectModeOutView')
@@ -155,7 +212,7 @@ class gUimge:
             list_store.append(
                     [OUTPRINT.outprint_rules[k]['desc'].replace('Output in ',''),k ]
                     )
-        if self.default_modeout == 'False':
+        if not self.default_modeout:
             result_out.set_active( 0 )
         else:
             _active = OUTPRINT.outprint_rules.keys().index( self.default_modeout )
@@ -167,25 +224,48 @@ class gUimge:
         self.delim.append_text('\\n')
         self.delim.set_active(0)
 
-        self.result_text = self.WidgetsTree.get_object('ResultText')
+
+        #Чтение и определение стартовой директории.
+        _sd = self.config.get_main( 'startdir')
+        _ld = self.config.get_main( 'lastdir' )
+        if _ld:
+            self.lastdir = _ld
+            print self.lastdir
+            self.WidgetsTree.get_object('CheckLastDir').set_active(True)
+            self.WidgetsTree.get_object('SelStartDir').set_sensitive(False)
+        elif _sd:
+            self.lastdir = 'file://'+_sd
+        else:
+            self.lastdir = 'file://'+HOME
 
         #Виджеты
+        self.result_text = self.WidgetsTree.get_object('ResultText')
         self.upload_button = self.WidgetsTree.get_object('UploadButton')
         self.abort_button  = self.WidgetsTree.get_object("AbortButton")
 
         self.filelistprogress = self.WidgetsTree.get_object('progressbar1')
         self.cancelbutton = self.WidgetsTree.get_object( "CancelButton" )
+        self.uploadprogressvbox = self.WidgetsTree.get_object("uploadprogressvbox")
         self.statusbar = self.WidgetsTree.get_object( "statusbar1" )
+        #установка опций.
+        self.WidgetsTree.get_object('SaveOnExit').set_active( self.config.get_main('save_on_exit', _eval=True) or False )
+        self.WidgetsTree.get_object('SelStartDir').set_current_folder_uri(self.lastdir)
 
-        self._check_filelist_state()
 
-    def initFileListIcons(self, filenames):
-        self.store = gtk.ListStore( str, # path
-                                     gtk.gdk.Pixbuf, #thumb
-                                     str, # title
-                                     long, # size
+        self.initSelectHost() # создаем список хостингов
+        self.initFileListIcons( filenames) # создаем виджет списка файлов
+
+
+    def initFileListIcons(self, filenames=None):
+        '''
+        Create File List
+        '''
+        self.store = gtk.ListStore( str,             # path
+                                     gtk.gdk.Pixbuf, # thumb pic
+                                     str,            # title
+                                     long,           # size
                                      )
-        #self.store = self.WidgetsTree.get_object( "FileListIconsStore" )
+
         icon_list = self.WidgetsTree.get_object('FileListIcons')
         icon_list.set_model( self.store)
         icon_list.set_pixbuf_column(1)
@@ -196,11 +276,31 @@ class gUimge:
                 gtk.DEST_DEFAULT_DROP ,
                 self.dnd_list,
                 gtk.gdk.ACTION_COPY)
+
         if filenames:
             self._add_files(filenames)
             self._check_filelist_state()
 
     def initSelectHost(self):
+        def get_favicon( host, ico_path):
+            if not os.path.exists(ico_path):
+                import urllib
+                u = urllib.urlopen('http://favicon.yandex.net/favicon/%s'%host).read()
+                #http://www.google.com/s2/favicons?domain=www.labnol.org
+                with open( '/tmp/tmp.png','w+b') as tmp:
+                    tmp.write( u )
+                tmp_ico = gtk.gdk.pixbuf_new_from_file("/tmp/tmp.png")
+                if tmp_ico.get_width() == 1:
+                    _ico = fail_icon
+                    fail_icon.save( ico_path, "png" )
+                else:
+                    _ico = tmp_ico.scale_simple( 16,16, gtk.gdk.INTERP_HYPER)
+                    tmp_ico.save( ico_path,"png" )
+            else:
+                _ico = gtk.gdk.pixbuf_new_from_file( ico_path)
+
+            return _ico
+
         "Устанавливаем выпадающий список выбора хостингов c иконостасом"
         self.SelectHost = self.WidgetsTree.get_object("SelectHost")
         list_store = gtk.ListStore( gtk.gdk.Pixbuf, str)
@@ -213,24 +313,21 @@ class gUimge:
         self.SelectHost.pack_start(crt,False)
         self.SelectHost.add_attribute(crt, 'text', 1)
 
-        for host in HOSTS.keys():
-            ico_name = host+'.ico'
-            ico_dir = os.path.join ( ICONS_DIR, 'hosts')
-            ico_path = os.path.join( ico_dir,ico_name)
+        fail_icon = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
 
-            if not os.path.exists(ico_path):
-                import urllib
-                u = urllib.urlopen('http://%s/favicon.ico'%host)
-                print ico_path
-                t = open( ico_path, 'w+b')
-                t.write(u.read())
-                t.close()
-            try:
-                ico = gtk.gdk.pixbuf_new_from_file_at_size( ico_path, 16,16)
-            except:
-                ico = self.guimge_icon_ico.scale_simple(16,16, gtk.gdk.INTERP_HYPER)
-            self.SelectHost.get_model().append( [ico, host] )
-        _active = HOSTS.keys().index( self.default_host)
+        ico_dir = os.path.join( ICONS_DIR, 'hosts')
+        hosts = sorted( HOSTS.keys() )
+        for host in hosts:
+            ico_name = host+'.png'
+            ico_path = os.path.join( ico_dir,ico_name)
+            #_ico = gtk.gdk.pixbuf_new_from_file_at_size( os.path.join(ico_dir, old_ico_name), 16,16)
+            #_ico.save( ico_path,"png")
+            ico = get_favicon( host, ico_path )
+
+            list_store.append( [ico, host] )
+
+        _active = hosts.index( self.default_host)
+
         #print self.default_host
         self.SelectHost.set_active( _active  )
 
@@ -275,10 +372,7 @@ class gUimge:
         self.store.append([f, pixbuf, title, size])
 
     def _add_files(self, filenames):
-
-        self.filelistprogress.show()
-        self.cancelbutton.show()
-
+        self.uploadprogressvbox.show()
         file_list = []
         for f in filenames:
             if not os.path.isdir(f):
@@ -307,11 +401,11 @@ class gUimge:
             current_file_count += 1
 
         self.stop = False
-        self.filelistprogress.hide()
-        self.cancelbutton.hide()
+        self.uploadprogressvbox.hide()
 
     def _check_filelist_state(self):
         _store =  [ s[3] for s in self.store]
+
         if not _store:
             noclear=False
         else:
@@ -329,6 +423,39 @@ class gUimge:
         self.upload_button.set_sensitive(noclear)
         self.WidgetsTree.get_object('ClearFileList').set_sensitive(noclear)
         self.WidgetsTree.get_object('DeleteSelectedItems').set_sensitive(noclear)
+
+    def _uploading(self, obj):
+        """docstring for _uploading"""
+        def upload_thread( obj, thread_result):
+            global UIMGE
+            UIMGE.upload( unicode( obj,"utf-8") )
+            thread_result += (       UIMGE.img_url,
+                    UIMGE.img_thumb_url,
+                    UIMGE.filename
+                    )
+
+        if sys.platform != "win32":
+            manager = multiprocessing.Manager()
+            thread_result = manager.list()
+            self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,thread_result) )
+            self.upload_thread.start()
+
+            while self.upload_thread.is_alive():
+                gtk.main_iteration()
+                if self.stop:
+                    self.filelistprogress.set_text("Stopped...")
+                    self.upload_thread.terminate()
+                    break
+            return thread_result
+        else:
+            global UIMGE
+            UIMGE.upload( unicode( obj,"utf-8") )
+
+            _result = ( UIMGE.img_url,
+                            UIMGE.img_thumb_url,
+                            UIMGE.filename
+                            )
+
 
     #Events
     #Toolbar
@@ -350,16 +477,10 @@ class gUimge:
             print 'Closed, no files selected'
 
     def on_UploadButton_clicked(self, widget):
-        def upload_thread( obj, thread_result):
-            global UIMGE
-            UIMGE.upload( unicode( obj,"utf-8") )
-            thread_result += (       UIMGE.img_url,
-                    UIMGE.img_thumb_url,
-                    UIMGE.filename
-                    )
 
         self.upload_button.hide()
         self.abort_button.show()
+        self.uploadprogressvbox.show()
 
         objects = [ s[0] for s in self.store]
         self.result = []
@@ -369,40 +490,23 @@ class gUimge:
             __current_n_obj = 1
             __all_n_obj = len(objects)
             for obj in objects:
-                self.cancelbutton.show()
-                self.filelistprogress.show()
-
                 self.filelistprogress.set_text(
                        'Uploading %i file of %i files'%( __current_n_obj, __all_n_obj)
                        )
                 self.filelistprogress.set_fraction( float(__current_n_obj)/__all_n_obj )
-                __current_n_obj +=1
-                manager = multiprocessing.Manager()
-                thread_result = manager.list()
-                self.upload_thread = multiprocessing.Process( target=upload_thread, args=(obj,thread_result) )
-                self.upload_thread.start()
-
-                while self.upload_thread.is_alive():
+                while gtk.events_pending():
                     gtk.main_iteration()
-                    if self.stop:
-                        self.filelistprogress.set_text("Stopped...")
-                        self.upload_thread.terminate()
-                        break
+                __current_n_obj +=1
+
+                _result = self._uploading( obj)
                 if self.stop:
                     break
-
-                self.result.append( thread_result  )
-                #print self.result
+                self.result.append( _result  )
                 self.update_result_text()
-                #self.WidgetsTree.get_object('ResultExpander').set_sensitive(True)
                 self.WidgetsTree.get_object('Clipboard').set_sensitive(True)
 
-                if self.stop:
-                    break
-
             self.stop = False
-            self.cancelbutton.hide()
-            self.filelistprogress.hide()
+            self.uploadprogressvbox.hide()
             self.abort_button.hide()
             self.upload_button.show()
 
@@ -435,6 +539,7 @@ class gUimge:
     def on_SelectHost_changed(self, widget):
         self.current_host = widget.get_model()[widget.get_active()][1]
         UIMGE.set_host( HOSTS.get( self.current_host ))
+        self.config.set_main('host', self.current_host)
         #print "sel host"
         #print widget.get_active(),widget.get_model()[widget.get_active()][1], widget.name
         #print self.current_host
@@ -502,23 +607,44 @@ class gUimge:
 
     #Settings page
     def on_SaveSettings_clicked(self, widget):
-        self.conf.set( self.conf_default_section ,'host',self.current_host)
-        self.conf.set( self.conf_default_section ,'modeout',self.current_modeout)
-        conf_dir = os.path.split( CONF_FILE)[0]
-        if conf_dir and not os.path.exists(conf_dir):
-            os.makedirs( conf_dir)
-        self.conf.write( open(CONF_FILE, 'w+b') )
+        self.on_CheckLastDir_toggled()
+        self.config.set_main( 'host',self.current_host)
+        self.config.set_main( 'modeout',self.current_modeout )
+        self.config.save_conf( CONF_FILE )
         pass
+
+    def on_SaveOnExit_toggled(self, widget):
+        """docstringfname for on_SaveOnExit_toggled"""
+        self.config.set_main('save_on_exit', widget.get_active())
+
+    def on_SelStartDir_file_set(self, widget):
+        """docstring for on_SelStartDir_file_set"""
+        startdir = widget.get_filename()
+        self.config.set_main('startdir', startdir)
+        self.lastdir = 'file://'+startdir
+    def on_CheckLastDir_toggled(self, widget=None):
+        """docstring for on_CheckLastDir_toggled"""
+        active =widget.get_active() if widget else self.WidgetsTree.get_object('CheckLastDir').get_active()
+        if active:
+            self.config.set_main('lastdir', self.lastdir)
+            self.WidgetsTree.get_object('SelStartDir').set_sensitive( False)
+        else:
+            self.config.del_main('lastdir')
+            self.WidgetsTree.get_object('SelStartDir').set_sensitive( True)
 
     def exit_event(self, widget, event):
         print widget
         print event.keyval
         if event.keyval == 65307:
             self.exit()
-    def exit( self):
+
+    def exit( self, widget=None):
         if self.upload_thread:
             self.upload_thread.terminate()
+        if self.config.get_main( 'save_on_exit', _eval=True):
+            self.config.save_conf( CONF_FILE)
         gtk.main_quit()
+
 
 def FileChooser(lastdir=False, folder_chooser=False):
     chooser = gtk.FileChooserDialog(
@@ -576,14 +702,12 @@ def FileChooser(lastdir=False, folder_chooser=False):
     chooser.connect("update-preview", update_preview ,preview )
     return chooser
 
-
 def human(num, prefix=" ", suffix='b'):
     num=float(num)
     for x in ['','K','M','G','T']:
         if num<1024:
             return "%3.1f%s%s%s" % (num, prefix, x,  suffix)
         num /=1024
-
 
 def main():
     from optparse import OptionParser
@@ -597,4 +721,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
