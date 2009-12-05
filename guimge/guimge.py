@@ -39,7 +39,7 @@ gtk.gdk.threads_init()
 #TODO: Добавить скриншотинг, в качестве опциональной зависимости.
 #TODO: Сделать возможность убирания в трей. Реализацию подглядеть в http://code.google.com/p/imageshack-applet/
 
-from uimge import Uimge, Outprint, Hosts
+from uimge.uimge import Uimge, Outprint, Hosts
 
 
 if not sys.platform == 'win32':
