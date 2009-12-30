@@ -290,12 +290,15 @@ class gUimge:
                 with open( '/tmp/tmp.png','w+b') as tmp:
                     tmp.write( u )
                 tmp_ico = gtk.gdk.pixbuf_new_from_file("/tmp/tmp.png")
-                if tmp_ico.get_width() == 1:
+                try:
+                    if tmp_ico.get_width() == 1:
+                        _ico = fail_icon
+                        fail_icon.save( ico_path, "png" )
+                    else:
+                        _ico = tmp_ico.scale_simple( 16,16, gtk.gdk.INTERP_HYPER)
+                        tmp_ico.save( ico_path,"png" )
+                except GError:
                     _ico = fail_icon
-                    fail_icon.save( ico_path, "png" )
-                else:
-                    _ico = tmp_ico.scale_simple( 16,16, gtk.gdk.INTERP_HYPER)
-                    tmp_ico.save( ico_path,"png" )
             else:
                 _ico = gtk.gdk.pixbuf_new_from_file( ico_path)
 
